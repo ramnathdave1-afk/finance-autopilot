@@ -17,5 +17,8 @@ export {
   type AccountBalance,
 } from './fetchers';
 export { storeAccessToken, readAccessToken, deleteAccessToken } from './vault';
+export { handlePlaidWebhook, verifyPlaidJwt, type PlaidWebhook } from './webhook';
+export { detectSubscriptionsForUser, normalizeMerchant, type DetectOptions } from './subscriptions-detect';
+export { spendingDelta, cashflow, type CategoryDelta } from './trends';
 export * as MxFallback from './fallback/mx';
 export * as FinicityFallback from './fallback/finicity';
