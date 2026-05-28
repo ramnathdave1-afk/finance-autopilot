@@ -20,5 +20,13 @@ export { storeAccessToken, readAccessToken, deleteAccessToken } from './vault';
 export { handlePlaidWebhook, verifyPlaidJwt, type PlaidWebhook } from './webhook';
 export { detectSubscriptionsForUser, normalizeMerchant, type DetectOptions } from './subscriptions-detect';
 export { spendingDelta, cashflow, type CategoryDelta } from './trends';
+export {
+  detectAnomalies,
+  detectChargesAfterCancellation,
+  type AnomalyFlag,
+  type AnomalyReason,
+} from './anomaly';
+export { syncHoldingsForItem, investmentNetWorth } from './investments';
+export { buildSpendingProfile, type SpendingProfile } from './spending-profile';
 export * as MxFallback from './fallback/mx';
 export * as FinicityFallback from './fallback/finicity';

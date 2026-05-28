@@ -192,6 +192,193 @@ export interface WaitlistSignupRow {
   created_at: string;
 }
 
+// ===== Phase 2 / Tier-2 agent rows =====
+export type DisputeStatus =
+  | 'detected'
+  | 'awaiting_user'
+  | 'filing'
+  | 'filed'
+  | 'resolved_won'
+  | 'resolved_lost'
+  | 'cancelled';
+
+export type BillNegotiationStatus =
+  | 'pending'
+  | 'preparing_call'
+  | 'calling'
+  | 'negotiating'
+  | 'succeeded'
+  | 'failed'
+  | 'no_savings';
+
+export type LoanType = 'mortgage' | 'student' | 'auto' | 'personal' | 'heloc';
+export type InsuranceKind = 'auto' | 'renters' | 'home' | 'life' | 'health';
+
+export interface BillRow {
+  id: string;
+  user_id: string;
+  provider_name: string;
+  account_number_masked: string | null;
+  current_amount: number;
+  billing_period: string | null;
+  source: string;
+  ocr_raw: Record<string, unknown> | null;
+  uploaded_at: string;
+  last_negotiated_at: string | null;
+  created_at: string;
+}
+
+export interface BillNegotiationRow {
+  id: string;
+  user_id: string;
+  bill_id: string;
+  agent_action_id: string | null;
+  status: BillNegotiationStatus;
+  target_amount: number | null;
+  achieved_amount: number | null;
+  monthly_savings: number | null;
+  call_started_at: string | null;
+  call_ended_at: string | null;
+  call_duration_seconds: number | null;
+  voice_recording_url: string | null;
+  transcript_url: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface DisputeRow {
+  id: string;
+  user_id: string;
+  transaction_id: string;
+  agent_action_id: string | null;
+  status: DisputeStatus;
+  reason: string;
+  detection_score: number | null;
+  amount: number;
+  recovered_amount: number | null;
+  bank: string | null;
+  bank_case_id: string | null;
+  filed_at: string | null;
+  resolved_at: string | null;
+  evidence: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface CardRewardRule {
+  category: string;
+  multiplier: number;
+  cap_annual?: number;
+}
+
+export interface CardRow {
+  id: string;
+  name: string;
+  issuer: string;
+  network: string;
+  annual_fee: number;
+  signup_bonus: Record<string, unknown> | null;
+  rewards: CardRewardRule[];
+  benefits: string[];
+  application_url: string | null;
+  active: boolean;
+  created_at: string;
+}
+
+export interface UserCardRow {
+  id: string;
+  user_id: string;
+  card_id: string | null;
+  display_name: string | null;
+  last4: string | null;
+  estimated_monthly_value: number | null;
+  status: string;
+  added_at: string;
+}
+
+export interface UnclaimedFindRow {
+  id: string;
+  user_id: string;
+  source: string;
+  state: string | null;
+  holder: string | null;
+  amount_estimate: string | null;
+  property_id: string | null;
+  details: Record<string, unknown> | null;
+  claim_url: string | null;
+  status: string;
+  detected_at: string;
+}
+
+export interface LoanRow {
+  id: string;
+  user_id: string;
+  loan_type: LoanType;
+  servicer: string | null;
+  principal: number;
+  current_balance: number | null;
+  apr: number;
+  term_months: number;
+  remaining_months: number | null;
+  origination_date: string | null;
+  account_id: string | null;
+  notes: string | null;
+  created_at: string;
+}
+
+export interface RateSnapshotRow {
+  id: string;
+  loan_type: LoanType;
+  source: string;
+  apr_low: number;
+  apr_avg: number;
+  apr_high: number;
+  captured_on: string;
+  created_at: string;
+}
+
+export interface InsurancePolicyRow {
+  id: string;
+  user_id: string;
+  kind: InsuranceKind;
+  carrier: string;
+  policy_number_masked: string | null;
+  monthly_premium: number;
+  annual_premium: number | null;
+  renewal_date: string | null;
+  coverage: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface InsuranceQuoteRow {
+  id: string;
+  user_id: string;
+  policy_id: string;
+  carrier: string;
+  monthly_premium: number;
+  annual_premium: number | null;
+  coverage_match: Record<string, unknown> | null;
+  quote_url: string | null;
+  expires_at: string | null;
+  captured_at: string;
+}
+
+export interface InvestmentHoldingRow {
+  id: string;
+  user_id: string;
+  account_id: string;
+  security_id: string | null;
+  ticker: string | null;
+  name: string | null;
+  type: string | null;
+  quantity: number;
+  cost_basis: number | null;
+  current_price: number | null;
+  current_value: number | null;
+  iso_currency_code: string;
+  as_of: string;
+  created_at: string;
+}
+
 // Minimal Database<T> shape compatible with @supabase/supabase-js generics.
 export interface Database {
   public: {
@@ -206,6 +393,17 @@ export interface Database {
       agents: TableShape<AgentRow>;
       agent_actions: TableShape<AgentActionRow>;
       waitlist_signups: TableShape<WaitlistSignupRow>;
+      bills: TableShape<BillRow>;
+      bill_negotiations: TableShape<BillNegotiationRow>;
+      disputes: TableShape<DisputeRow>;
+      cards: TableShape<CardRow>;
+      user_cards: TableShape<UserCardRow>;
+      unclaimed_finds: TableShape<UnclaimedFindRow>;
+      loans: TableShape<LoanRow>;
+      rate_snapshots: TableShape<RateSnapshotRow>;
+      insurance_policies: TableShape<InsurancePolicyRow>;
+      insurance_quotes: TableShape<InsuranceQuoteRow>;
+      investment_holdings: TableShape<InvestmentHoldingRow>;
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
@@ -216,6 +414,10 @@ export interface Database {
       data_provider: DataProvider;
       agent_type: AgentType;
       action_status: ActionStatus;
+      dispute_status: DisputeStatus;
+      bill_negotiation_status: BillNegotiationStatus;
+      loan_type: LoanType;
+      insurance_kind: InsuranceKind;
     };
     CompositeTypes: Record<string, never>;
   };
