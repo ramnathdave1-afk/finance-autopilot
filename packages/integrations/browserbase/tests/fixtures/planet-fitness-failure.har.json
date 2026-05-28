@@ -1,0 +1,20 @@
+{
+  "scenarios": [
+    {
+      "name": "planet-fitness-cancel-failure",
+      "entries": [
+        { "kind": "navigate", "match": "planetfitness.com/account/login", "response": {} },
+        { "kind": "act", "match": "Enter username", "response": {} },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://test/pf-1.png", "pngBytes": 11000 } },
+        { "kind": "navigate", "match": "planetfitness.com/account", "response": {} },
+        {
+          "kind": "act",
+          "match": "Click the Cancel Membership link",
+          "response": {
+            "throwMessage": "Cancel button not clickable: in-person cancellation required at home club"
+          }
+        }
+      ]
+    }
+  ]
+}

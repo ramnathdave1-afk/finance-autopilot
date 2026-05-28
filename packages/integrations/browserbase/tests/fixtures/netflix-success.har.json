@@ -1,0 +1,20 @@
+{
+  "scenarios": [
+    {
+      "name": "netflix-cancel-success",
+      "entries": [
+        { "kind": "navigate", "match": "netflix.com/login", "response": {} },
+        { "kind": "act", "match": "Enter username", "response": {} },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://test/netflix-1.png", "pngBytes": 12000 } },
+        { "kind": "navigate", "match": "netflix.com/cancelplan", "response": {} },
+        { "kind": "act", "match": "Click the Finish Cancellation button", "response": {} },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://test/netflix-2.png", "pngBytes": 14000 } },
+        { "kind": "act", "match": "Confirm the cancellation", "response": {} },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://test/netflix-3.png", "pngBytes": 15000 } },
+        { "kind": "extract", "response": { "data": { "found": true, "text": "Your membership has been cancelled." } } },
+        { "kind": "observe", "response": { "html": "<h1>Your membership has been cancelled.</h1>", "url": "https://netflix.com/account" } },
+        { "kind": "close" }
+      ]
+    }
+  ]
+}

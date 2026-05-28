@@ -1,0 +1,35 @@
+{
+  "scenarios": [
+    {
+      "name": "generic-web-success",
+      "entries": [
+        { "kind": "navigate" },
+        { "kind": "act", "match": "Enter username" },
+        { "kind": "navigate" },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/login.png", "pngBytes": 11000 } },
+        { "kind": "act", "match": "Click the cancel-subscription" },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/cancel.png", "pngBytes": 12000 } },
+        { "kind": "act", "match": "Confirm the cancellation" },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/confirm.png", "pngBytes": 13000 } },
+        { "kind": "extract", "response": { "data": { "found": true, "text": "cancelled" } } },
+        { "kind": "close" }
+      ]
+    },
+    {
+      "name": "web-failure-cancel-blocked",
+      "entries": [
+        { "kind": "navigate" },
+        { "kind": "act", "match": "Enter username" },
+        { "kind": "navigate" },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/login.png", "pngBytes": 11000 } },
+        {
+          "kind": "act",
+          "match": "Click the cancel-subscription",
+          "response": { "throwMessage": "Cancel link disabled: in-person required" }
+        },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/blocked.png", "pngBytes": 10000 } },
+        { "kind": "close" }
+      ]
+    }
+  ]
+}
