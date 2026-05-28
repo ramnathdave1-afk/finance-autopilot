@@ -3,3 +3,4 @@ packages:
   - 'packages/*'
   - 'packages/integrations/*'
   - 'packages/agents/*'
+  - 'tests/*'
