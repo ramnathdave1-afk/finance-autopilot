@@ -70,22 +70,42 @@ class ElevenLabsAdapter implements TTSAdapter {
   }
 }
 
-// ─── Twilio Media fallback adapter ────────────────────────────────────────
-// Twilio's TTS (Polly via TwiML <Say>) emits during a call, not as a file. For
-// a file-style output we use AWS Polly direct OR keep this as a placeholder
-// that fails loudly. The failure cascade in synthesizeAndStore() catches it.
-class TwilioFallbackAdapter implements TTSAdapter {
-  name = 'twilio';
-  async synthesize(_input: TTSInput): Promise<TTSResult> {
-    // TODO(integrate-twilio-media): true file-based TTS via Polly direct or
-    // similar. Until then this adapter intentionally throws so the caller
-    // records that fallback was unavailable.
-    throw new Error('TwilioFallbackAdapter: file-based TTS not yet wired');
+// ─── OpenAI TTS fallback adapter ──────────────────────────────────────────
+// Originally specced as "Twilio Media" but Twilio's TTS path runs during a
+// live call, not as a file artifact. OpenAI TTS is a single HTTP POST that
+// returns raw audio bytes — closer to the brief's intent (file-based
+// fallback when ElevenLabs hits a quota / outage). Same env var convention.
+class OpenAITTSAdapter implements TTSAdapter {
+  name = 'openai';
+  async synthesize(input: TTSInput): Promise<TTSResult> {
+    const key = process.env.OPENAI_API_KEY;
+    if (!key) throw new Error('OPENAI_API_KEY not set');
+
+    const voice = process.env.OPENAI_TTS_VOICE ?? 'alloy';
+    const res = await fetch('https://api.openai.com/v1/audio/speech', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Accept: 'audio/mpeg',
+      },
+      body: JSON.stringify({
+        model: 'tts-1',
+        voice,
+        input: input.text,
+        response_format: 'mp3',
+      }),
+    });
+    if (!res.ok) throw new Error(`OpenAI TTS HTTP ${res.status}`);
+    const buf = new Uint8Array(await res.arrayBuffer());
+    // tts-1 mp3 ~32 kbps → 4 KB/sec.
+    const durationSec = Math.max(1, Math.round(buf.byteLength / 4000));
+    return { audioBytes: buf, mimeType: 'audio/mpeg', durationSec };
   }
 }
 
 let _primary: TTSAdapter = new ElevenLabsAdapter();
-let _fallback: TTSAdapter = new TwilioFallbackAdapter();
+let _fallback: TTSAdapter = new OpenAITTSAdapter();
 
 export function setTTSAdapters(opts: { primary?: TTSAdapter; fallback?: TTSAdapter }): void {
   if (opts.primary) _primary = opts.primary;
@@ -93,7 +113,7 @@ export function setTTSAdapters(opts: { primary?: TTSAdapter; fallback?: TTSAdapt
 }
 export function _resetTTSAdapters(): void {
   _primary = new ElevenLabsAdapter();
-  _fallback = new TwilioFallbackAdapter();
+  _fallback = new OpenAITTSAdapter();
 }
 
 // ─── Storage upload ───────────────────────────────────────────────────────

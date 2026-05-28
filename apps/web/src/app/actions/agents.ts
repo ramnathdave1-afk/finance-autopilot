@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { approveAction, markCancelled, startAction } from "@fa/db";
+import { approveAction, logStep, markCancelled, startAction } from "@fa/db";
 import type { AgentType } from "@fa/db/types";
 import { ROUTER_EVENT } from "@fa/inngest";
 import { hasSupabaseEnv } from "@/lib/data/env";
@@ -45,6 +45,13 @@ export interface DispatchInput {
   actionType: string;
   target?: string | null;
   requiresApproval?: boolean;
+  /**
+   * Richer-than-target input for agents that need it (auto-saver paycheck
+   * context, round-up week-of transactions, subscription-killer credentials).
+   * Seeded into agent_actions.audit_log as the `input:seed` step. The router
+   * pulls it back out via hydrateInput().
+   */
+  input?: Record<string, unknown>;
 }
 
 /**
@@ -64,6 +71,18 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
       target: input.target ?? null,
       requiresApproval: input.requiresApproval ?? false
     });
+
+    // Seed richer input into audit_log so the router can hydrate it on the
+    // worker side. Skip if there's no extra input — the agent will run from
+    // { target } alone.
+    if (input.input) {
+      try {
+        await logStep(row.id, { step: "input:seed", ok: true, detail: { input: input.input } });
+      } catch (e) {
+        // Non-fatal: agent can still run from target. Log only.
+        console.warn(`[dispatchAction] input seed failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
 
     // Only emit the router event when the row is ready to run.
     // Approval-gated rows wait for approveActionAction() before dispatch.

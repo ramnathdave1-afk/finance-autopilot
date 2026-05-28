@@ -130,12 +130,13 @@ export async function dispatchActionRouted(actionId: string): Promise<DispatchRe
   return { actionId, status: runRes.status as DispatchResult['status'], ...(runRes.result ? { result: runRes.result } : {}) };
 }
 
-function hydrateInput<T>(row: ActionRowLite, def: AgentDefinition<T>): T {
-  // Convention: dispatchAction seeds the first audit_log entry with detail.input
-  // when the agent needs richer-than-target context. Otherwise fall back to
-  // a minimal { target } shape — agents must tolerate it or seed properly.
+function hydrateInput<T>(row: ActionRowLite, _def: AgentDefinition<T>): T {
+  // Convention: dispatchAction seeds the audit_log with an `input:seed` step
+  // when the agent needs richer-than-target context. The `created` step
+  // (legacy) is also accepted for back-compat.
   for (const step of row.audit_log as Array<{ step?: string; detail?: { input?: T } }>) {
-    if (step && step.step === 'created' && step.detail && step.detail.input !== undefined) {
+    if (!step || !step.detail) continue;
+    if ((step.step === 'input:seed' || step.step === 'created') && step.detail.input !== undefined) {
       return step.detail.input;
     }
   }

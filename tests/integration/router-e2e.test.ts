@@ -183,6 +183,43 @@ describe('end-to-end: dispatchAction → router → agent runs', () => {
     expect(dbState.rows.get(row.id)!.status).toBe('escalated');
   });
 
+  it('router hydrates input from audit_log input:seed step (auto-saver case)', async () => {
+    const run = vi.fn(async (input: { paycheckTxnId: string; amountCents: number }) => ({
+      roi: null,
+      data: { paycheck: input.paycheckTxnId, allocated: input.amountCents },
+    }));
+    defineAgent<{ paycheckTxnId: string; amountCents: number }>({
+      type: 'auto_saver',
+      actionType: 'allocation_proposal',
+      requiresApproval: false,
+      run,
+    });
+
+    // Simulate dispatchAction: row + seed step.
+    const row = await startAction({
+      userId: 'u1',
+      agentId: 'ag-as',
+      agentType: 'auto_saver',
+      actionType: 'allocation_proposal',
+      target: null,
+      requiresApproval: false,
+    });
+    // Mock logStep call to seed input
+    dbState.rows.get(row.id)!.audit_log.push({
+      ts: new Date().toISOString(),
+      step: 'input:seed',
+      ok: true,
+      detail: { input: { paycheckTxnId: 'txn-42', amountCents: 320000 } },
+    });
+
+    const res = await dispatchActionRouted(row.id);
+    expect(res.status).toBe('succeeded');
+    expect(run).toHaveBeenCalledTimes(1);
+    const callArgs = run.mock.calls[0] as unknown as [{ paycheckTxnId: string; amountCents: number }];
+    expect(callArgs[0].paycheckTxnId).toBe('txn-42');
+    expect(callArgs[0].amountCents).toBe(320000);
+  });
+
   it('router skips terminal rows (idempotency on Inngest redelivery)', async () => {
     defineAgent<Record<string, unknown>>({
       type: 'spending_coach',
