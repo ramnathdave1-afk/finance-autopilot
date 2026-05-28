@@ -10,6 +10,7 @@
 import { NextResponse } from "next/server";
 import Stripe from "stripe";
 import { handleWebhook } from "@fa/stripe";
+import { captureError } from "@/lib/observability/sentry";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -43,6 +44,7 @@ export async function POST(req: Request): Promise<NextResponse> {
     // on a permanently-bad event. We log a redacted error tag for ops.
     const tag = e instanceof Error ? e.name : "Unknown";
     console.error(`[stripe-webhook] dispatch_error tag=${tag}`);
+    await captureError(e, { tags: { surface: "stripe-webhook", error_tag: tag } });
     return NextResponse.json({ ok: false, reason: "dispatch_error" }, { status: 200 });
   }
 }

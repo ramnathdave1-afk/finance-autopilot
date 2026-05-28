@@ -55,7 +55,9 @@ export async function computeFounderPrice(
     billingCycle === 'monthly'
   ) {
     const locked = await db.countFounderLifetimeLocked();
-    if (locked <= FOUNDER_LIFETIME_COHORT_SIZE) {
+    // Off-by-one guard: cohort size is 100, so the 101st query (locked === 100)
+    // must NOT receive the lifetime price.
+    if (locked < FOUNDER_LIFETIME_COHORT_SIZE) {
       return {
         stripePriceId: FOUNDER_LIFETIME_PRICE_ID,
         displayCents: FOUNDER_LIFETIME_AMOUNT_CENTS,

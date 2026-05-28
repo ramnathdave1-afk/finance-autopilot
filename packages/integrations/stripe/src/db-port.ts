@@ -81,15 +81,13 @@ export const realDb: DbPort = {
     return count ?? 0;
   },
   async countAnnualSubscribers() {
-    // TODO(integrate-t2-migration): add a billing_cycle column to users so we
-    // can count annual subscribers precisely. For now we count any active
-    // subscription as a proxy — the founder year-1 coupon eligibility check
-    // is conservative (cohort cap of 500 still enforced).
+    // billing_cycle was added in phase1b_T5_billing.sql.
     const s = createServiceClient();
     const { count, error } = await s
       .from('users')
       .select('id', { count: 'exact', head: true })
-      .eq('subscription_status', 'active');
+      .eq('subscription_status', 'active')
+      .eq('billing_cycle', 'annual');
     if (error) throw new Error(error.message);
     return count ?? 0;
   },
@@ -113,26 +111,52 @@ export const realDb: DbPort = {
     return (data as AgentActionLite | null) ?? null;
   },
   async hasProcessedEvent(eventId) {
-    // TODO(integrate-t2-migration: add stripe_events table with event_id pk).
-    // Until then we degrade to in-memory dedupe (best-effort) — webhooks
-    // remain safe because all downstream writes are themselves idempotent.
-    return _inMemoryEvents.has(eventId);
+    // stripe_events table landed in phase1b_T5_billing.sql.
+    const s = createServiceClient();
+    const { data, error } = await s
+      .from('stripe_events')
+      .select('event_id')
+      .eq('event_id', eventId)
+      .maybeSingle();
+    if (error && error.code !== 'PGRST116') {
+      // Surface real errors. PGRST116 = no rows found (Supabase quirk on maybeSingle).
+      throw new Error(`hasProcessedEvent failed: ${error.message}`);
+    }
+    return data !== null;
   },
-  async markEventProcessed(eventId, _type) {
-    // TODO(integrate-t2-migration: persist to stripe_events table).
-    _inMemoryEvents.add(eventId);
+  async markEventProcessed(eventId, type) {
+    const s = createServiceClient();
+    const { error } = await s
+      .from('stripe_events')
+      .insert({ event_id: eventId, event_type: type });
+    // 23505 = unique_violation. Concurrent retries from Stripe can race here;
+    // the second writer is a no-op, not an error.
+    if (error && error.code !== '23505') {
+      throw new Error(`markEventProcessed failed: ${error.message}`);
+    }
   },
   async hasProcessedRefund(actionId) {
-    // TODO(integrate-t2-migration: add stripe_refunds table keyed by action_id).
-    return _inMemoryRefunds.has(actionId);
+    const s = createServiceClient();
+    const { data, error } = await s
+      .from('stripe_refunds')
+      .select('action_id')
+      .eq('action_id', actionId)
+      .maybeSingle();
+    if (error && error.code !== 'PGRST116') {
+      throw new Error(`hasProcessedRefund failed: ${error.message}`);
+    }
+    return data !== null;
   },
-  async markRefundProcessed(actionId, _refundId, _amountCents) {
-    _inMemoryRefunds.add(actionId);
+  async markRefundProcessed(actionId, refundId, amountCents) {
+    const s = createServiceClient();
+    const { error } = await s
+      .from('stripe_refunds')
+      .insert({ action_id: actionId, stripe_refund_id: refundId, amount_cents: amountCents });
+    if (error && error.code !== '23505') {
+      throw new Error(`markRefundProcessed failed: ${error.message}`);
+    }
   },
 };
-
-const _inMemoryEvents = new Set<string>();
-const _inMemoryRefunds = new Set<string>();
 
 let _db: DbPort = realDb;
 export function setDbPort(db: DbPort): void {
@@ -143,6 +167,4 @@ export function getDbPort(): DbPort {
 }
 export function _resetDbPort(): void {
   _db = realDb;
-  _inMemoryEvents.clear();
-  _inMemoryRefunds.clear();
 }

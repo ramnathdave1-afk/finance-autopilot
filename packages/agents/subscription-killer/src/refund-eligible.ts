@@ -3,12 +3,17 @@
 // boolean on agent_actions so T5 (billing) can sweep + credit during the
 // nightly Stripe job.
 //
-// TODO(integrate-t2-migration: add refund_eligible bool to agent_actions, default false)
-// The column already exists in the AgentAction type (@fa/types) but the
-// SQL migration that adds it to the live table is owned by T2. Until that
-// migration lands this writes to a column that may not yet exist — Supabase
-// will surface a 42703 (undefined_column) which we swallow + log so the
-// agent's terminal status still wins.
+// Column was added in packages/db/migrations/phase1b_T5_billing.sql. We
+// keep the 42703 swallow path below as a defensive guard against drift
+// across environments that haven't migrated yet, but in production this
+// branch should never fire.
+//
+// NOTE (orchestrator review): per legal/refund-policy.md the policy
+// distinguishes "agent fault" (refundable) from "third-party refused"
+// (not refundable). Today we mark ALL terminal failures eligible, which
+// over-refunds when the cancel fails because the provider blocked us
+// rather than because the agent broke. Fix in Phase 2 by classifying
+// failure-cause and only flagging the "agent-fault" subset.
 
 import { createServiceClient } from '@fa/db';
 
