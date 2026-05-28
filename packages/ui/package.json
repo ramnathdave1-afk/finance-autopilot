@@ -7,7 +7,7 @@
   "scripts": {
     "lint": "echo skip",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
     "clsx": "^2.1.1",

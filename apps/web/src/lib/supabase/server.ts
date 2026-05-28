@@ -1,5 +1,7 @@
-import { createServerClient } from "@supabase/ssr";
+import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { cookies } from "next/headers";
+
+type CookieToSet = { name: string; value: string; options: CookieOptions };
 
 export async function createClient() {
   const cookieStore = await cookies();
@@ -9,9 +11,9 @@ export async function createClient() {
     {
       cookies: {
         getAll: () => cookieStore.getAll(),
-        setAll: (toSet) => {
+        setAll: (toSet: CookieToSet[]) => {
           try {
-            toSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
+            toSet.forEach(({ name, value, options }: CookieToSet) => cookieStore.set(name, value, options));
           } catch {
             // server component context — middleware will refresh
           }

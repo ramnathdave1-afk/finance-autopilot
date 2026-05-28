@@ -1,16 +1,25 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useSyncExternalStore } from "react";
 
 const KEY = "fa.paused";
 
+function subscribe(cb: () => void) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener("storage", cb);
+  return () => window.removeEventListener("storage", cb);
+}
+
+function getSnapshot() {
+  if (typeof window === "undefined") return false;
+  return localStorage.getItem(KEY) === "1";
+}
+
 export function usePauseAll() {
-  const [paused, setPaused] = useState(false);
-  useEffect(() => {
-    setPaused(typeof window !== "undefined" && localStorage.getItem(KEY) === "1");
-  }, []);
+  const paused = useSyncExternalStore(subscribe, getSnapshot, () => false);
   function set(v: boolean) {
-    setPaused(v);
-    if (typeof window !== "undefined") localStorage.setItem(KEY, v ? "1" : "0");
+    if (typeof window === "undefined") return;
+    localStorage.setItem(KEY, v ? "1" : "0");
+    window.dispatchEvent(new StorageEvent("storage", { key: KEY }));
   }
   return [paused, set] as const;
 }

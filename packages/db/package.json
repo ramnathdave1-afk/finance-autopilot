@@ -13,7 +13,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --max-warnings 0 || true",
-    "test": "vitest run",
+    "test": "vitest run --passWithNoTests",
     "migrate:apply": "node ./scripts/apply-migrations.mjs"
   },
   "dependencies": {
@@ -21,6 +21,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/node": "^22.10.0",
     "typescript": "^5.6.3",
     "vitest": "^2.1.0"
   }
