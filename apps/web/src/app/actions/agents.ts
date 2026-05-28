@@ -2,8 +2,10 @@
 import { revalidatePath } from "next/cache";
 import { approveAction, markCancelled, startAction } from "@fa/db";
 import type { AgentType } from "@fa/db/types";
+import { ROUTER_EVENT } from "@fa/inngest";
 import { hasSupabaseEnv } from "@/lib/data/env";
 import { currentUserId } from "@/lib/current-user";
+import { getInngest } from "@/lib/api/inngest-client";
 
 export type ActionResult = { ok: boolean; error?: string };
 
@@ -11,6 +13,12 @@ export async function approveActionAction(actionId: string): Promise<ActionResul
   if (!hasSupabaseEnv()) return { ok: true };
   try {
     await approveAction(actionId);
+    // Now that the row is approved, kick the router so the agent runs.
+    try {
+      await getInngest().send({ name: ROUTER_EVENT, data: { actionId } });
+    } catch (e) {
+      console.warn(`[approveActionAction] inngest send failed: ${e instanceof Error ? e.message : String(e)}`);
+    }
     revalidatePath("/app");
     revalidatePath("/app/activity");
     return { ok: true };
@@ -56,6 +64,19 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
       target: input.target ?? null,
       requiresApproval: input.requiresApproval ?? false
     });
+
+    // Only emit the router event when the row is ready to run.
+    // Approval-gated rows wait for approveActionAction() before dispatch.
+    if (!input.requiresApproval) {
+      try {
+        await getInngest().send({ name: ROUTER_EVENT, data: { actionId: row.id } });
+      } catch (e) {
+        // Don't fail UI dispatch on a transient Inngest hiccup — the row
+        // exists and a janitor can re-emit. Log only.
+        console.warn(`[dispatchAction] inngest send failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+
     revalidatePath("/app");
     return { ok: true, actionId: row.id };
   } catch (e) {
