@@ -135,12 +135,21 @@ importers:
       '@fa/agent-daily-brief':
         specifier: workspace:*
         version: link:../../packages/agents/daily-brief
+      '@fa/agent-human-backup':
+        specifier: workspace:*
+        version: link:../../packages/agents/human-backup
       '@fa/agent-insurance-shopper':
         specifier: workspace:*
         version: link:../../packages/agents/insurance-shopper
+      '@fa/agent-investment-rebalancer':
+        specifier: workspace:*
+        version: link:../../packages/agents/investment-rebalancer
       '@fa/agent-missing-money':
         specifier: workspace:*
         version: link:../../packages/agents/missing-money
+      '@fa/agent-net-worth-strategy':
+        specifier: workspace:*
+        version: link:../../packages/agents/net-worth-strategy
       '@fa/agent-refinance-watcher':
         specifier: workspace:*
         version: link:../../packages/agents/refinance-watcher
@@ -153,6 +162,9 @@ importers:
       '@fa/agent-subscription-killer':
         specifier: workspace:*
         version: link:../../packages/agents/subscription-killer
+      '@fa/agent-tax-prep':
+        specifier: workspace:*
+        version: link:../../packages/agents/tax-prep
       '@fa/db':
         specifier: workspace:*
         version: link:../../packages/db
@@ -392,6 +404,25 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
 
+  packages/agents/human-backup:
+    dependencies:
+      '@fa/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@fa/inngest':
+        specifier: workspace:*
+        version: link:../../integrations/inngest
+      '@fa/types':
+        specifier: workspace:*
+        version: link:../../types
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
+
   packages/agents/insurance-shopper:
     dependencies:
       '@fa/db':
@@ -408,8 +439,49 @@ importers:
         specifier: ^2.1.0
         version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
 
+  packages/agents/investment-rebalancer:
+    dependencies:
+      '@fa/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@fa/inngest':
+        specifier: workspace:*
+        version: link:../../integrations/inngest
+      '@fa/types':
+        specifier: workspace:*
+        version: link:../../types
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
+
   packages/agents/missing-money:
     dependencies:
+      '@fa/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@fa/inngest':
+        specifier: workspace:*
+        version: link:../../integrations/inngest
+      '@fa/types':
+        specifier: workspace:*
+        version: link:../../types
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
+
+  packages/agents/net-worth-strategy:
+    dependencies:
+      '@fa/claude':
+        specifier: workspace:*
+        version: link:../../integrations/claude
       '@fa/db':
         specifier: workspace:*
         version: link:../../db
@@ -507,6 +579,25 @@ importers:
       zod:
         specifier: ^3.23.8
         version: 3.25.76
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@22.19.19)(jsdom@25.0.1)(lightningcss@1.19.0)(terser@5.48.0)
+
+  packages/agents/tax-prep:
+    dependencies:
+      '@fa/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@fa/inngest':
+        specifier: workspace:*
+        version: link:../../integrations/inngest
+      '@fa/types':
+        specifier: workspace:*
+        version: link:../../types
     devDependencies:
       typescript:
         specifier: ^5.6.3

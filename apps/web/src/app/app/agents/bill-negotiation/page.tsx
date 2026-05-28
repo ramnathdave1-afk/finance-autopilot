@@ -69,7 +69,6 @@ export default function BillNegotiation() {
       // authorization gate for a real outbound call — the row lands
       // awaiting_approval and does NOT run until we approve it below.
       const res = await dispatchAction({
-        agentId: "bill_negotiation",
         agentType: "bill_negotiation",
         actionType: "negotiate",
         target: provider,

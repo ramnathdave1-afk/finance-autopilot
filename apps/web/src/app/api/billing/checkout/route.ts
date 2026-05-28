@@ -6,6 +6,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createCheckoutSession } from "@fa/stripe";
 import { requireUser, UnauthorizedError } from "@/lib/api/auth";
+import { track } from "@/lib/analytics/posthog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -31,6 +32,14 @@ export async function POST(req: Request): Promise<NextResponse> {
       billingCycle: parsed.data.billingCycle,
       successUrl: `${origin}/upgrade/success?session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${origin}/upgrade`,
+    });
+    // Conversion event (PRD §19): user-initiated upgrade intent. The tier is
+    // CONFIRMED later by the Stripe webhook (which flips pricing_tier inside
+    // @fa/stripe); this captures the funnel step where the user chose to upgrade.
+    // Fire-and-forget; no-op without a PostHog key.
+    void track(user.id, "checkout_started", {
+      tier: parsed.data.tier,
+      billing_cycle: parsed.data.billingCycle,
     });
     return NextResponse.json({ url: result.url, sessionId: result.sessionId });
   } catch (e) {

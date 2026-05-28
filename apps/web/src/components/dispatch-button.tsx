@@ -5,7 +5,12 @@ import { dispatchAction } from "@/app/actions/agents";
 import type { AgentType } from "@fa/db/types";
 
 interface DispatchButtonProps extends Omit<ButtonProps, "onClick"> {
-  agentId: string;
+  /**
+   * Optional explicit agents.id (a UUID). Normally omitted: dispatchAction
+   * resolves the signed-in user's canonical agent row for `agentType`. Passing
+   * a bare agent-type string here would be rejected (agent_id is a uuid FK).
+   */
+  agentId?: string;
   agentType: AgentType;
   actionType: string;
   target?: string | null;
@@ -34,7 +39,7 @@ export function DispatchButton({
     setErr(null);
     start(async () => {
       const res = await dispatchAction({
-        agentId,
+        ...(agentId ? { agentId } : {}),
         agentType,
         actionType,
         target: target ?? null,

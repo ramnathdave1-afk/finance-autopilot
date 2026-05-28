@@ -21,7 +21,6 @@ export default function MissingMoneyPage() {
           <CardBody className="mt-2">Verify your details and we&apos;ll file the claim.</CardBody>
           <CardFooter>
             <DispatchButton
-              agentId="missing_money"
               agentType="missing_money"
               actionType="file_claim"
               target={f.source}
@@ -30,7 +29,6 @@ export default function MissingMoneyPage() {
               Claim
             </DispatchButton>
             <DispatchButton
-              agentId="missing_money"
               agentType="missing_money"
               actionType="reject_match"
               target={f.source}

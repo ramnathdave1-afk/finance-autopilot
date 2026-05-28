@@ -24,7 +24,6 @@ export default function InsurancePage() {
           <CardTitle>{q.carrier} — ${q.premium}/mo</CardTitle>
           <CardFooter>
             <DispatchButton
-              agentId="insurance_shopper"
               agentType="insurance_shopper"
               actionType="switch_carrier"
               target={q.carrier}
@@ -33,7 +32,6 @@ export default function InsurancePage() {
               Switch
             </DispatchButton>
             <DispatchButton
-              agentId="insurance_shopper"
               agentType="insurance_shopper"
               actionType="compare_quotes"
               target={q.carrier}

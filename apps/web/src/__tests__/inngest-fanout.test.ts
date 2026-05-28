@@ -30,6 +30,12 @@ vi.mock("@fa/agent-insurance-shopper", () => ({
   getInsuranceShopperAgent: vi.fn(),
 }));
 
+// Tier-3 agents. Bare side-effect imports in the route; empty stubs suffice.
+vi.mock("@fa/agent-tax-prep", () => ({}));
+vi.mock("@fa/agent-investment-rebalancer", () => ({}));
+vi.mock("@fa/agent-net-worth-strategy", () => ({}));
+vi.mock("@fa/agent-human-backup", () => ({}));
+
 vi.mock("@fa/inngest", () => ({ runAgent: vi.fn() }));
 vi.mock("@fa/inngest/src/define-agent", () => ({
   _getRegistry: () => new Map(),
@@ -112,6 +118,11 @@ describe("Plaid hourly cron fan-out", () => {
     const refiRefresh = registered.find((r) => r.config.id === "refi-rate-refresh");
     expect(refiRefresh, "refi-rate-refresh cron should be registered").toBeTruthy();
     expect(refiRefresh!.trigger.cron).toContain("6 * * *");
+
+    // The investment-rebalancer quarterly cron is registered alongside.
+    const rebalancer = registered.find((r) => r.config.id === "rebalancer-quarterly");
+    expect(rebalancer, "rebalancer-quarterly cron should be registered").toBeTruthy();
+    expect(rebalancer!.trigger.cron).toBe("0 9 1 1,4,7,10 *");
   });
 
   it("sends no events when there are no active users", async () => {

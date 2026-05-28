@@ -21,7 +21,6 @@ export default function CardOptimizerPage() {
           <CardBody className="mt-2">Earns {r.reward} in this category.</CardBody>
           <CardFooter>
             <DispatchButton
-              agentId="credit_card_optimizer"
               agentType="credit_card_optimizer"
               actionType="apply_card"
               target={r.recommended}
@@ -30,7 +29,6 @@ export default function CardOptimizerPage() {
               Apply
             </DispatchButton>
             <DispatchButton
-              agentId="credit_card_optimizer"
               agentType="credit_card_optimizer"
               actionType="mark_owned"
               target={r.recommended}

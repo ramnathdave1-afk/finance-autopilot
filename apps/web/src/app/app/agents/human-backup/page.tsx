@@ -1,4 +1,18 @@
 "use client";
+// Tier-3 Human Backup page (PRD §8.4 Agent 16).
+//
+// Two distinct entry points exist for this agent:
+//   1. The AUTOMATED SWEEP (agentType "human_backup", actionType "route_to_human")
+//      runs unattended via Inngest when another agent fails/escalates, parking a
+//      'human_review' queue entry that awaits a human. There is no user button
+//      for it — it reacts to failures on its own.
+//   2. This page is the USER-INITIATED path: a person explicitly asks for a
+//      human. It dispatches agentType "human_backup" (NOT the old
+//      credit_card_optimizer placeholder) so canAct/tier gating + the activity
+//      feed resolve correctly. We force requiresApproval:true so the request
+//      lands as an awaiting_approval row a human picks up from the queue — the
+//      same human-awaiting state the sweep parks. We never claim it was handled.
+
 import { useState, useTransition } from "react";
 import { Badge, Button, Card, CardBody, CardFooter, CardTitle, Input, Label } from "@fa/ui";
 import { dispatchAction } from "@/app/actions/agents";
@@ -14,10 +28,13 @@ export default function HumanBackupPage() {
     setErr(null);
     start(async () => {
       const res = await dispatchAction({
-        agentId: "human_backup",
-        agentType: "credit_card_optimizer",
+        agentType: "human_backup",
         actionType: "human_request",
-        target: topic
+        target: topic,
+        // A human must pick this up — park it in awaiting_approval (the queue's
+        // human-awaiting state), never auto-dispatch the router.
+        requiresApproval: true,
+        ...(details ? { input: { details } } : {}),
       });
       if (!res.ok) {
         setErr(res.error ?? "Could not send");
@@ -41,7 +58,10 @@ export default function HumanBackupPage() {
         {sent ? (
           <>
             <CardTitle>Request received.</CardTitle>
-            <CardBody className="mt-2">A team member will reach out within 24 hours at the email on file.</CardBody>
+            <CardBody className="mt-2">
+              It&apos;s queued for a human. A team member will reach out within 24 hours at the email
+              on file. You can track it on your activity feed.
+            </CardBody>
           </>
         ) : (
           <>

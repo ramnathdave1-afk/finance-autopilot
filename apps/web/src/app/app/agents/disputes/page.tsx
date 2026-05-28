@@ -23,7 +23,6 @@ export default function DisputesPage() {
             <CardBody className="mt-2">${d.amount.toFixed(2)} charged. We&apos;ll file the dispute on your behalf.</CardBody>
             <CardFooter>
               <DispatchButton
-                agentId="charge_dispute"
                 agentType="charge_dispute"
                 actionType="file_dispute"
                 target={d.merchant}
@@ -33,7 +32,6 @@ export default function DisputesPage() {
                 File dispute
               </DispatchButton>
               <DispatchButton
-                agentId="charge_dispute"
                 agentType="charge_dispute"
                 actionType="mark_legitimate"
                 target={d.merchant}

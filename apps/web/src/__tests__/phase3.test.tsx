@@ -8,17 +8,23 @@ import HumanBackup from "@/app/app/agents/human-backup/page";
 import Roadmap from "@/app/roadmap/page";
 
 describe("Phase 3 screens", () => {
-  it("tax prep shows deductible categories", () => {
+  // These Tier-3 pages are now wired to the real agents: each idle state offers
+  // a dispatch that requires approval (recommend-only — no autonomous money
+  // moves), rather than rendering a static shell.
+  it("tax prep offers a running tax summary build", () => {
     render(<Tax />);
-    expect(screen.getByText(/Home office/i)).toBeInTheDocument();
+    expect(screen.getByText(/Running tax summary/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Build summary/i })).toBeInTheDocument();
   });
-  it("rebalancer shows portfolio drift", () => {
+  it("rebalancer offers a recommend-only drift check", () => {
     render(<Rebalancer />);
-    expect(screen.getByText(/Portfolio drift/i)).toBeInTheDocument();
+    expect(screen.getAllByText(/Recommendation only/i).length).toBeGreaterThan(0);
+    expect(screen.getByRole("button", { name: /Check drift/i })).toBeInTheDocument();
   });
-  it("strategy renders trajectory chart", () => {
+  it("strategy offers a recommend-only projection run", () => {
     render(<Strategy />);
-    expect(screen.getAllByText(/trajectory/i).length).toBeGreaterThan(0);
+    expect(screen.getByText("Your trajectory")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Run strategy/i })).toBeInTheDocument();
   });
   it("human backup submits a request", async () => {
     render(<HumanBackup />);

@@ -23,7 +23,6 @@ export default function RefinancePage() {
             <CardBody className="mt-2">Balance ${r.balance.toLocaleString()}. Switching rate saves ${r.lifetimeSavings} over the loan life.</CardBody>
             <CardFooter>
               <DispatchButton
-                agentId="refinance_watcher"
                 agentType="refinance_watcher"
                 actionType="request_offer"
                 target={r.loan}
@@ -32,7 +31,6 @@ export default function RefinancePage() {
                 See offer
               </DispatchButton>
               <DispatchButton
-                agentId="refinance_watcher"
                 agentType="refinance_watcher"
                 actionType="dismiss"
                 target={r.loan}

@@ -25,6 +25,14 @@ import "@fa/agent-card-optimizer";
 import "@fa/agent-missing-money";
 import "@fa/agent-refinance-watcher";
 
+// Tier-3 agents. Each registers its (type, actionType) tuple via defineAgent()
+// at module load, so a bare side-effect import is sufficient (none are
+// dependency-injected like insurance-shopper).
+import "@fa/agent-tax-prep";
+import "@fa/agent-investment-rebalancer";
+import "@fa/agent-net-worth-strategy";
+import "@fa/agent-human-backup";
+
 // Insurance shopper is dependency-injected (its agent is built lazily around a
 // QuotePort), so importing the module does NOT register it. We must call the
 // singleton builder once to register the ('insurance_shopper','requote') tuple.
@@ -140,7 +148,36 @@ const refinanceFunctions = [
   ),
 ];
 
-const functions = [...agentFunctions, ...plaidFunctions, ...refinanceFunctions];
+// Investment-rebalancer quarterly trigger. Fires at 09:00 UTC on the 1st of
+// Jan/Apr/Jul/Oct (the quarter boundaries). The rebalancer is recommend-only and
+// requires a PER-USER target allocation + taxable-account set as
+// InvestmentRebalancerInput — neither of which is fabricable from a cron alone.
+// Like the refinance-watcher per-user fan-out, the per-user dispatch is deferred
+// until a "list enabled users + their target allocations" helper exists; today
+// the real run path is the Rebalancer page (UI dispatch with a default target +
+// the user's resolved taxable-account ids). This cron computes the canonical
+// quarter tag (e.g. "2026-Q2") used as
+// the idempotency key so a future fan-out has a stable period to key on, and
+// records that the quarter boundary fired. It never invents a target or emits a
+// rebalance off fabricated numbers.
+function currentQuarterTag(now = new Date()): string {
+  const q = Math.floor(now.getUTCMonth() / 3) + 1;
+  return `${now.getUTCFullYear()}-Q${q}`;
+}
+const rebalancerFunctions = [
+  inngest.createFunction(
+    { id: "rebalancer-quarterly", retries: 3 },
+    { cron: "0 9 1 1,4,7,10 *" },
+    () => ({ period: currentQuarterTag(), fanOut: 0, deferred: "no-enabled-users-helper" }),
+  ),
+];
+
+const functions = [
+  ...agentFunctions,
+  ...plaidFunctions,
+  ...refinanceFunctions,
+  ...rebalancerFunctions,
+];
 
 export const { GET, POST, PUT } = serve({
   client: inngest,
