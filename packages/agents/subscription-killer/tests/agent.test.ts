@@ -162,12 +162,14 @@ import { registryList } from '../src/registry';
 const HAR_PATH = path.join(__dirname, 'fixtures', 'merchants.har.json');
 
 const WEB_MERCHANTS = registryList.filter((m) => m.cancelMethod === 'web');
-// 9 web merchants in the seed registry → 9 success scenarios + 1 dedicated
-// failure scenario (re-using the last merchant w/ a separate subscriptionId)
-// = 10 total, per the T4 spec.
+// The registry has grown well past the seed set (PRD §8.2: top 50 services
+// pre-mapped), so this harness pins a fixed sample of 9 web merchants →
+// 9 success scenarios + 1 dedicated failure scenario (re-using the last
+// sampled merchant w/ a separate subscriptionId) = 10 total, per the T4 spec.
+const SCENARIO_WEB_MERCHANTS = WEB_MERCHANTS.slice(0, 9);
 const SCENARIOS: Array<{ merchant: typeof WEB_MERCHANTS[number]; outcome: 'success' | 'failure'; subSuffix: string }> = [
-  ...WEB_MERCHANTS.map((m) => ({ merchant: m, outcome: 'success' as const, subSuffix: 'ok' })),
-  { merchant: WEB_MERCHANTS[WEB_MERCHANTS.length - 1]!, outcome: 'failure' as const, subSuffix: 'fail' },
+  ...SCENARIO_WEB_MERCHANTS.map((m) => ({ merchant: m, outcome: 'success' as const, subSuffix: 'ok' })),
+  { merchant: SCENARIO_WEB_MERCHANTS[SCENARIO_WEB_MERCHANTS.length - 1]!, outcome: 'failure' as const, subSuffix: 'fail' },
 ];
 
 const seedSubscription = (subId: string) => {

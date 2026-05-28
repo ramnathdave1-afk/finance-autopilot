@@ -18,6 +18,7 @@
     "@fa/agent-spending-coach": "workspace:*",
     "@fa/agent-subscription-killer": "workspace:*",
     "@fa/db": "workspace:*",
+    "@fa/goal-funder": "workspace:*",
     "@fa/inngest": "workspace:*",
     "@fa/plaid": "workspace:*",
     "@fa/stripe": "workspace:*",

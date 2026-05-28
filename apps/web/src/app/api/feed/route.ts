@@ -43,7 +43,7 @@ type FeedItem =
 
 export async function GET(req: Request): Promise<NextResponse> {
   try {
-    const { user } = await requireUser();
+    const { user } = await requireUser(req);
     const url = new URL(req.url);
     const limit = Math.min(Math.max(Number(url.searchParams.get("limit") ?? 50), 1), 200);
 

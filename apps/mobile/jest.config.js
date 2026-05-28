@@ -6,6 +6,15 @@
 //      separate project so a misconfigured RN transform can't break the
 //      cheap, fast TS suite.
 //
+// IMPORTANT — coverage caveat: the "rn" project is currently DISABLED (its
+// testMatch points at a non-existent dir). That means the four component
+// suites (FeedCard / PauseAllButton / AgentActionCard / CancelSubscriptionSheet
+// .test.tsx) are NOT executed by `pnpm --filter @fa/mobile test`. The green
+// output reflects ONLY the node-env "ts" suite, not full component coverage.
+// The feed screen's fetch/loading/error/empty wiring is covered headlessly by
+// tests/load-feed.test.ts (which exercises src/lib/load-feed used by feed.tsx)
+// until jest-expo is stable and the "rn" project is re-enabled below.
+//
 // To run only the pure-TS surface (default in CI until jest-expo + RN 0.74
 // setup is stable):
 //   pnpm --filter @fa/mobile test
@@ -27,6 +36,7 @@ module.exports = {
       testMatch: [
         '<rootDir>/tests/tokens.test.ts',
         '<rootDir>/tests/feed-fixture.test.ts',
+        '<rootDir>/tests/load-feed.test.ts',
       ],
       moduleNameMapper: { '^@/(.*)$': '<rootDir>/src/$1' },
     },
