@@ -56,7 +56,7 @@ export const autoSaverAgent: AgentDefinition<AutoSaverInput> = defineAgent<AutoS
         autonomousTransfer: false,
       },
     };
-    await ctx.log('proposal:built', true, data);
+    await ctx.log('proposal:built', true, data as unknown as Record<string, unknown>);
     return { roi: null, data: data as unknown as Record<string, unknown> };
   },
 });

@@ -13,7 +13,8 @@
           "response": {
             "throwMessage": "Cancel button not clickable: in-person cancellation required at home club"
           }
-        }
+        },
+        { "kind": "screenshot", "response": { "screenshotUrl": "https://test/pf-error.png", "pngBytes": 9000 } }
       ]
     }
   ]

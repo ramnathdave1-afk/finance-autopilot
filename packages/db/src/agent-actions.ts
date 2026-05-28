@@ -77,7 +77,12 @@ export async function startAction(input: StartActionInput): Promise<AgentActionR
 /** Append one audit step. Concurrency-safe via array_append-style write. */
 export async function logStep(actionId: string, step: Omit<AgentAuditStep, 'ts'> & { ts?: string }): Promise<void> {
   const supabase = createServiceClient();
-  const entry: AgentAuditStep = { ts: step.ts ?? new Date().toISOString(), step: step.step, ok: step.ok, detail: step.detail };
+  const entry: AgentAuditStep = {
+    ts: step.ts ?? new Date().toISOString(),
+    step: step.step,
+    ok: step.ok,
+    ...(step.detail !== undefined ? { detail: step.detail } : {}),
+  };
 
   // jsonb concat — read-modify-write is fine because each action is owned by
   // exactly one workflow run at a time (Inngest enforces single-flight per id).

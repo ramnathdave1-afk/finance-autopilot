@@ -19,7 +19,7 @@ import {
   markEscalated,
   type StartActionInput,
 } from '@fa/db';
-import type { AgentType } from '@fa/types';
+import type { AgentType } from '@fa/db/types';
 import { writeAuditEntry } from './audit';
 
 export interface AgentRunContext {
@@ -96,7 +96,7 @@ export async function runAgent<TInput>(
     actionType: def.actionType,
     target: startInput.target ?? null,
     requiresApproval: def.requiresApproval,
-    idempotencyKey,
+    ...(idempotencyKey ? { idempotencyKey } : {}),
   });
 
   if (def.requiresApproval && row.status === 'awaiting_approval') {

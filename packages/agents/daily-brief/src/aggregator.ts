@@ -60,7 +60,10 @@ export async function aggregateDailyBrief(
     .gt('amount', 0);
   if (txErr) throw new Error(`aggregate:transactions ${txErr.message}`);
 
-  const yesterdaySpend = (txns ?? []).reduce((s, r) => s + Number(r.amount ?? 0), 0);
+  const yesterdaySpend = ((txns ?? []) as Array<{ amount: number | null }>).reduce(
+    (s, r) => s + Number(r.amount ?? 0),
+    0,
+  );
 
   // 2. Upcoming bills — active subscriptions due in next 24h.
   const { data: subs, error: subErr } = await supabase
@@ -71,7 +74,8 @@ export async function aggregateDailyBrief(
   if (subErr) throw new Error(`aggregate:subscriptions ${subErr.message}`);
 
   const upcomingBills: UpcomingBill[] = [];
-  for (const s of subs ?? []) {
+  type SubRow = { merchant: string; amount: number | null; frequency: string; last_charged_at: string | null };
+  for (const s of (subs ?? []) as SubRow[]) {
     const due = nextDueAt(s.last_charged_at, s.frequency, now);
     if (!due) continue;
     if (due.getTime() >= now.getTime() && due.getTime() <= now.getTime() + 24 * 60 * 60 * 1000) {
@@ -94,11 +98,12 @@ export async function aggregateDailyBrief(
     .lte('completed_at', next24hIso);
   if (actErr) throw new Error(`aggregate:actions ${actErr.message}`);
 
-  const completedActions: CompletedAction[] = (acts ?? []).map((a) => ({
-    agentType: a.agent_type as string,
-    actionType: a.action_type as string,
+  type ActRow = { agent_type: string; action_type: string; roi_amount: number | null; target: string | null };
+  const completedActions: CompletedAction[] = ((acts ?? []) as ActRow[]).map((a) => ({
+    agentType: a.agent_type,
+    actionType: a.action_type,
     roi: a.roi_amount == null ? null : Number(a.roi_amount),
-    target: (a.target as string | null) ?? null,
+    target: a.target ?? null,
   }));
 
   return { yesterdaySpend, upcomingBills, completedActions };

@@ -1,9 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Mock @fa/db before importing the recorder so logStep is captured.
-const logStepMock = vi.fn(async () => {});
+// vi.mock is hoisted — use vi.hoisted() so the mock fn is initialized first.
+const { logStepMock } = vi.hoisted(() => ({
+  logStepMock: vi.fn(async (_actionId: string, _step: { step: string; ok: boolean; detail?: unknown }) => {}),
+}));
 vi.mock('@fa/db', () => ({
-  logStep: (...args: unknown[]) => logStepMock(...args),
+  logStep: logStepMock,
 }));
 
 import { stepRecorder } from '../src/recorder';
@@ -43,6 +46,6 @@ describe('stepRecorder', () => {
   it('preserves ok=false for failures', async () => {
     const rec = stepRecorder('action-789');
     await rec.attachScreenshot('confirm', false, { url: 'https://x.png', pngBytes: 100 });
-    expect(logStepMock.mock.calls[0]?.[1].ok).toBe(false);
+    expect(logStepMock.mock.calls[0]?.[1]?.ok).toBe(false);
   });
 });

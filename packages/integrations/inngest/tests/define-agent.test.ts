@@ -100,7 +100,8 @@ describe('defineAgent + runAgent', () => {
 
     await runAgent(agent, { userId: 'u1', agentId: 'a1', input: {} }, { sleep: () => Promise.resolve() });
     expect(onFailure).toHaveBeenCalledTimes(1);
-    expect(onFailure.mock.calls[0]![2]).toBeInstanceOf(Error);
+    const args = (onFailure.mock.calls[0] as unknown) as unknown[];
+    expect(args[2]).toBeInstanceOf(Error);
   });
 
   it('returns awaiting_approval without running when requiresApproval=true', async () => {
@@ -122,7 +123,7 @@ describe('defineAgent + runAgent', () => {
 
   it('idempotency key returns same action_id on re-invoke', async () => {
     const agent = defineAgent<{ tag: string }>({
-      type: 'round_up',
+      type: 'round_up_investor',
       actionType: 'sweep',
       requiresApproval: false,
       idempotencyKey: (i) => `sweep:${i.tag}`,

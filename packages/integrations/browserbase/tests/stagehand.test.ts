@@ -28,11 +28,12 @@ describe('stagehand helpers', () => {
     expect(login.ok).toBe(true);
     expect(login.screenshot.url).toContain('netflix-1');
 
+    // manually drive navigate(cancelplan) — the next entry in the HAR
+    await s.navigate('https://www.netflix.com/cancelplan');
     const click = await clickCancelFlow(
       s,
       'Click the Finish Cancellation button at the bottom of the page.',
     );
-    // after navigate(cancelplan) — manually drive the navigate
     expect(click.ok).toBe(true);
   });
 
