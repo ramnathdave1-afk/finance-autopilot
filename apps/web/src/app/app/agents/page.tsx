@@ -14,7 +14,11 @@ const agents: AgentEntry[] = [
   { href: "/app/agents/cards", name: "Card Optimizer", tier: "Pro", blurb: "Use the right card for every purchase category." },
   { href: "/app/agents/missing-money", name: "Missing Money", tier: "Pro", blurb: "Find unclaimed funds and forgotten balances." },
   { href: "/app/agents/refinance", name: "Refinance Watcher", tier: "Pro", blurb: "Monitors rates and alerts on real savings." },
-  { href: "/app/agents/insurance", name: "Insurance Shopper", tier: "Pro", blurb: "Re-quotes annually and shows you the best deal." }
+  { href: "/app/agents/insurance", name: "Insurance Shopper", tier: "Pro", blurb: "Re-quotes annually and shows you the best deal." },
+  { href: "/app/agents/tax", name: "Tax Prep", tier: "Premium", blurb: "Year-round deductible tracking and 1099 aggregation." },
+  { href: "/app/agents/rebalancer", name: "Investment Rebalancer", tier: "Premium", blurb: "Quarterly drift correction and tax-loss harvesting." },
+  { href: "/app/agents/strategy", name: "Net Worth Strategy", tier: "Premium", blurb: "Long-term planning AI with scenario modeling." },
+  { href: "/app/agents/human-backup", name: "Human Backup", tier: "Premium", blurb: "If an agent fails, a real human takes over within 24 hours." }
 ];
 
 export default function AgentsIndex() {

@@ -9,3 +9,5 @@ export { FeedCard } from "./feed-card";
 export type { FeedCardData, FeedCardAction } from "./feed-card";
 export { VoicePlayer } from "./voice-player";
 export type { VoicePlayerProps } from "./voice-player";
+export { Sparkline } from "./sparkline";
+export type { SparklineProps } from "./sparkline";

@@ -11,6 +11,7 @@ export function TopNav() {
         <Link href="/app" className="font-semibold tracking-tight">Pilot</Link>
         <nav className="flex items-center gap-5 text-small text-fg-muted">
           <Link href="/app" className="hover:text-fg">Feed</Link>
+          <Link href="/app/net-worth" className="hover:text-fg">Net worth</Link>
           <Link href="/app/agents" className="hover:text-fg">Agents</Link>
           <Link href="/app/activity" className="hover:text-fg">Activity</Link>
           <Link href="/app/settings" className="hover:text-fg">Settings</Link>
