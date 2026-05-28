@@ -67,6 +67,12 @@ export interface RunOptions {
   baseDelayMs?: number;
   /** Override sleep — tests pass () => Promise.resolve() to skip real delays. */
   sleep?: (ms: number) => Promise<void>;
+  /**
+   * If set, runAgent skips `startAction` and proceeds against this existing
+   * row id. Used by the router after `agent_action.created` events — the row
+   * was already created by `dispatchAction` in apps/web.
+   */
+  existingActionId?: string;
 }
 
 const defaultSleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
@@ -89,18 +95,25 @@ export async function runAgent<TInput>(
 
   const idempotencyKey = def.idempotencyKey?.(startInput.input) ?? undefined;
 
-  const row = await startAction({
-    userId: startInput.userId,
-    agentId: startInput.agentId,
-    agentType: def.type,
-    actionType: def.actionType,
-    target: startInput.target ?? null,
-    requiresApproval: def.requiresApproval,
-    ...(idempotencyKey ? { idempotencyKey } : {}),
-  });
+  // Router path: existingActionId means startAction already happened upstream
+  // (dispatchAction created the row, Inngest replayed). Skip the insert.
+  let row: { id: string; status: string };
+  if (opts.existingActionId) {
+    row = { id: opts.existingActionId, status: 'pending' };
+  } else {
+    row = await startAction({
+      userId: startInput.userId,
+      agentId: startInput.agentId,
+      agentType: def.type,
+      actionType: def.actionType,
+      target: startInput.target ?? null,
+      requiresApproval: def.requiresApproval,
+      ...(idempotencyKey ? { idempotencyKey } : {}),
+    });
 
-  if (def.requiresApproval && row.status === 'awaiting_approval') {
-    return { actionId: row.id, status: 'awaiting_approval' };
+    if (def.requiresApproval && row.status === 'awaiting_approval') {
+      return { actionId: row.id, status: 'awaiting_approval' };
+    }
   }
 
   const ctx: AgentRunContext = {
@@ -146,6 +159,12 @@ export async function runAgent<TInput>(
 
 export function _getRegistry(): ReadonlyMap<string, AgentDefinition<any>> {
   return _registry;
+}
+
+/** Public lookup: find a registered agent by (type, actionType) tuple. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export function findAgentByTuple(agentType: string, actionType: string): AgentDefinition<any> | undefined {
+  return _registry.get(`${agentType}:${actionType}`);
 }
 
 /** Test helper. Never call in prod code. */

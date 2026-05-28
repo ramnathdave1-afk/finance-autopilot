@@ -1,7 +1,15 @@
-export { defineAgent, runAgent } from './define-agent';
-export type { AgentDefinition, AgentRunContext, AgentRunResult } from './define-agent';
+export { defineAgent, runAgent, findAgentByTuple, _getRegistry } from './define-agent';
+export type { AgentDefinition, AgentRunContext, AgentRunResult, RunOptions } from './define-agent';
 export { sendPush, sendVoiceMemo, setNotificationDispatcher } from './notifier';
 export type { NotificationDispatcher } from './notifier';
 export { getInngestClient } from './client';
 export type { InngestClient } from './client';
 export { writeAuditEntry } from './audit';
+export { notifyUser, setPushAdapter, getPushTargetForUser } from './notify';
+export type { PushAdapter, PushPayload, PushResult, PushTarget } from './notify';
+export { synthesizeAndStore, setTTSAdapters } from './voice';
+export type { TTSAdapter, TTSInput, TTSResult, SynthesizeAndStoreResult } from './voice';
+export { publishAgentActionUpdate, setRealtimePublisher } from './realtime';
+export type { RealtimePublisher, RealtimeUpdate } from './realtime';
+export { dispatchActionRouted, eventNameFor, ROUTER_EVENT } from './router';
+export type { DispatchResult } from './router';

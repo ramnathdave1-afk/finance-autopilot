@@ -24,7 +24,11 @@ export type AgentType =
   | 'credit_card_optimizer'
   | 'missing_money'
   | 'refinance_watcher'
-  | 'insurance_shopper';
+  | 'insurance_shopper'
+  | 'tax_prep'
+  | 'investment_rebalancer'
+  | 'net_worth_strategy'
+  | 'human_backup';
 
 export type ActionStatus =
   | 'pending'
@@ -362,6 +366,17 @@ export interface InsuranceQuoteRow {
   captured_at: string;
 }
 
+export interface NetWorthSnapshotRow {
+  id: string;
+  user_id: string;
+  snapshot_date: string;
+  total_assets: number;
+  total_liabilities: number;
+  net_worth: number;
+  breakdown: Record<string, number>;
+  created_at: string;
+}
+
 export interface InvestmentHoldingRow {
   id: string;
   user_id: string;
@@ -404,6 +419,7 @@ export interface Database {
       insurance_policies: TableShape<InsurancePolicyRow>;
       insurance_quotes: TableShape<InsuranceQuoteRow>;
       investment_holdings: TableShape<InvestmentHoldingRow>;
+      net_worth_snapshots: TableShape<NetWorthSnapshotRow>;
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

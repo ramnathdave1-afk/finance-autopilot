@@ -43,6 +43,10 @@ export const TIER_AGENTS: Record<PricingTier, AgentType[]> = {
     'missing_money',
     'refinance_watcher',
     'insurance_shopper',
+    'tax_prep',
+    'investment_rebalancer',
+    'net_worth_strategy',
+    'human_backup',
   ],
 };
 

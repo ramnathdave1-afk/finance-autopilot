@@ -7,6 +7,13 @@ export {
   categorizeBacklog,
 } from './transactions';
 export { syncUser, syncAll } from './sync';
+export { syncItemForProvider, detectAndQueueReauth } from './router';
+export {
+  nightlySyncHandler,
+  hourlySyncUserHandler,
+  cronSpecs,
+  type CronResult,
+} from './cron';
 export {
   getNetWorth,
   getSpendingByCategory,
