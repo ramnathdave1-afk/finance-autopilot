@@ -1,0 +1,18 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root { color-scheme: dark; }
+
+html, body { background: hsl(224 14% 6%); color: hsl(0 0% 96%); }
+
+* { -webkit-font-smoothing: antialiased; }
+
+@layer components {
+  .card-surface {
+    @apply rounded-lg bg-bg-elevated border border-border p-5 transition-colors duration-200 ease-soft;
+  }
+  .focus-ring {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent focus-visible:ring-offset-2 focus-visible:ring-offset-bg;
+  }
+}

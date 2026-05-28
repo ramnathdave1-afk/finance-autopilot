@@ -1,0 +1,14 @@
+{
+  "name": "finance-autopilot",
+  "private": true,
+  "version": "0.0.0",
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "pnpm --filter @fa/web dev",
+    "build": "pnpm -r build",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test"
+  },
+  "packageManager": "pnpm@9.0.0"
+}
