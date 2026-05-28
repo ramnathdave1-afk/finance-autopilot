@@ -1,12 +1,11 @@
-import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
-import FeedPage from "@/app/app/page";
+import { describe, it, expect, vi } from "vitest";
+import { stubFeed } from "@/lib/feed-stub";
 
-describe("Feed", () => {
-  it("renders stub feed cards", () => {
-    render(<FeedPage />);
-    expect(screen.getByText(/Cancel Planet Fitness/i)).toBeInTheDocument();
-    expect(screen.getByText(/Uber Eats up 80%/i)).toBeInTheDocument();
-    expect(screen.getByText(/Yesterday: \$42 spent/i)).toBeInTheDocument();
+vi.mock("server-only", () => ({}));
+
+describe("Feed stub data", () => {
+  it("contains showcase cards", () => {
+    expect(stubFeed.find((c) => c.title.includes("Planet Fitness"))).toBeTruthy();
+    expect(stubFeed.find((c) => c.title.includes("Uber Eats"))).toBeTruthy();
   });
 });

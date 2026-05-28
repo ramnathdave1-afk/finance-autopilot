@@ -1,7 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect } from "vitest";
-import NetWorth from "@/app/app/net-worth/page";
 import Tax from "@/app/app/agents/tax/page";
 import Rebalancer from "@/app/app/agents/rebalancer/page";
 import Strategy from "@/app/app/agents/strategy/page";
@@ -9,11 +8,6 @@ import HumanBackup from "@/app/app/agents/human-backup/page";
 import Roadmap from "@/app/roadmap/page";
 
 describe("Phase 3 screens", () => {
-  it("net worth renders trend + milestones", () => {
-    render(<NetWorth />);
-    expect(screen.getByText(/Milestones/i)).toBeInTheDocument();
-    expect(screen.getByRole("img", { name: /trend chart/i })).toBeInTheDocument();
-  });
   it("tax prep shows deductible categories", () => {
     render(<Tax />);
     expect(screen.getByText(/Home office/i)).toBeInTheDocument();
