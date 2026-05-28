@@ -23,7 +23,7 @@ function UpgradeInner() {
       const res = await fetch("/api/billing/checkout", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ tier, billing })
+        body: JSON.stringify({ tier, billingCycle: billing })
       });
       const data = await res.json().catch(() => ({}));
       if (data?.url) window.location.assign(data.url);

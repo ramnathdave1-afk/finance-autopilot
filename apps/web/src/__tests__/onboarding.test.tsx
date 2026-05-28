@@ -1,5 +1,14 @@
 import { render, screen } from "@testing-library/react";
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ push: vi.fn(), back: vi.fn(), replace: vi.fn() }),
+  useSearchParams: () => new URLSearchParams()
+}));
+
+// Plaid Link button hits fetch — stub the global fetch to avoid network.
+vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ link_token: "sandbox-x" }), { headers: { "content-type": "application/json" } })));
+
 import Welcome from "@/app/onboarding/page";
 import Goals from "@/app/onboarding/goals/page";
 import Connect from "@/app/onboarding/connect/page";

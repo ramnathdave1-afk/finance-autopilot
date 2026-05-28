@@ -10,6 +10,6 @@ describe("Bill negotiation", () => {
     await userEvent.type(screen.getByLabelText(/Current \$\/mo/i), "120");
     await userEvent.type(screen.getByLabelText(/Target \$\/mo/i), "80");
     await userEvent.click(screen.getByRole("button", { name: /continue/i }));
-    expect(await screen.findByText(/Preparing call script/i)).toBeInTheDocument();
+    expect(await screen.findByText(/Authorize the call/i)).toBeInTheDocument();
   });
 });
