@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 import { stubRefi } from "@/lib/agents-pro-stub";
 
 export default function RefinancePage() {
@@ -21,8 +22,25 @@ export default function RefinancePage() {
             <CardTitle>{r.loan}</CardTitle>
             <CardBody className="mt-2">Balance ${r.balance.toLocaleString()}. Switching rate saves ${r.lifetimeSavings} over the loan life.</CardBody>
             <CardFooter>
-              <Button>See offer</Button>
-              <Button variant="ghost">Dismiss</Button>
+              <DispatchButton
+                agentId="refinance_watcher"
+                agentType="refinance_watcher"
+                actionType="request_offer"
+                target={r.loan}
+                doneLabel="Offer requested"
+              >
+                See offer
+              </DispatchButton>
+              <DispatchButton
+                agentId="refinance_watcher"
+                agentType="refinance_watcher"
+                actionType="dismiss"
+                target={r.loan}
+                variant="ghost"
+                doneLabel="Dismissed"
+              >
+                Dismiss
+              </DispatchButton>
             </CardFooter>
           </Card>
         ))

@@ -1,8 +1,9 @@
 "use client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Input, Label, VoicePlayer } from "@fa/ui";
+import { dispatchAction } from "@/app/actions/agents";
 
-type Status = "idle" | "submitted" | "authorizing" | "calling" | "complete" | "failed";
+type Status = "idle" | "authorize" | "calling" | "complete" | "failed";
 
 export default function BillNegotiation() {
   const [provider, setProvider] = useState("");
@@ -10,16 +11,30 @@ export default function BillNegotiation() {
   const [target, setTarget] = useState("");
   const [file, setFile] = useState<File | null>(null);
   const [status, setStatus] = useState<Status>("idle");
-
-  function submit() {
-    setStatus("submitted");
-    setTimeout(() => setStatus("authorizing"), 600);
-  }
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
 
   function authorize() {
-    setStatus("calling");
-    // Background: T4/T5 wire to Twilio voice agent. Status updates flow back via Inngest events.
-    setTimeout(() => setStatus("complete"), 1500);
+    setErr(null);
+    start(async () => {
+      const res = await dispatchAction({
+        agentId: "bill_negotiation",
+        agentType: "bill_negotiation",
+        actionType: "negotiate",
+        target: provider,
+        requiresApproval: false
+      });
+      if (!res.ok) {
+        setErr(res.error ?? "Could not start negotiation");
+        setStatus("failed");
+        return;
+      }
+      setStatus("calling");
+      // T4's voice agent picks up via Inngest. UI polls activity log or
+      // realtime channel for status — for now we simulate completion so
+      // users see the end state.
+      window.setTimeout(() => setStatus("complete"), 1500);
+    });
   }
 
   return (
@@ -59,23 +74,20 @@ export default function BillNegotiation() {
             </div>
           </CardBody>
           <CardFooter>
-            <Button onClick={submit} disabled={!provider || !current || !target}>Continue</Button>
+            <Button onClick={() => setStatus("authorize")} disabled={!provider || !current || !target}>Continue</Button>
           </CardFooter>
         </Card>
       )}
 
-      {status === "submitted" && (
-        <Card><CardTitle>Preparing call script…</CardTitle><CardBody className="mt-2 text-small">Reviewing your bill and tailoring the negotiation strategy.</CardBody></Card>
-      )}
-
-      {status === "authorizing" && (
+      {status === "authorize" && (
         <Card>
           <CardTitle>Authorize the call</CardTitle>
           <CardBody className="mt-2">
             I&apos;ll call {provider} and try to reduce ${current}/mo to ${target}/mo. Estimated savings: ${Number(current) - Number(target)}/mo.
           </CardBody>
+          {err && <p className="mt-2 text-small text-danger" role="alert">{err}</p>}
           <CardFooter>
-            <Button onClick={authorize}>Authorize</Button>
+            <Button onClick={authorize} disabled={pending}>{pending ? "Authorizing…" : "Authorize"}</Button>
             <Button variant="ghost" onClick={() => setStatus("idle")}>Cancel</Button>
           </CardFooter>
         </Card>
@@ -110,6 +122,16 @@ export default function BillNegotiation() {
           </div>
           <CardFooter>
             <Button onClick={() => setStatus("idle")}>Negotiate another</Button>
+          </CardFooter>
+        </Card>
+      )}
+
+      {status === "failed" && (
+        <Card>
+          <CardTitle>Could not start the call</CardTitle>
+          <CardBody className="mt-2 text-small text-danger">{err}</CardBody>
+          <CardFooter>
+            <Button onClick={() => { setErr(null); setStatus("authorize"); }}>Try again</Button>
           </CardFooter>
         </Card>
       )}

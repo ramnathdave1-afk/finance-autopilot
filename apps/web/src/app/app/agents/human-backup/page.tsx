@@ -1,15 +1,30 @@
 "use client";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Badge, Button, Card, CardBody, CardFooter, CardTitle, Input, Label } from "@fa/ui";
+import { dispatchAction } from "@/app/actions/agents";
 
 export default function HumanBackupPage() {
   const [topic, setTopic] = useState("");
   const [details, setDetails] = useState("");
   const [sent, setSent] = useState(false);
+  const [pending, start] = useTransition();
+  const [err, setErr] = useState<string | null>(null);
 
   function submit() {
-    // T5 wires to support queue.
-    setSent(true);
+    setErr(null);
+    start(async () => {
+      const res = await dispatchAction({
+        agentId: "human_backup",
+        agentType: "credit_card_optimizer",
+        actionType: "human_request",
+        target: topic
+      });
+      if (!res.ok) {
+        setErr(res.error ?? "Could not send");
+        return;
+      }
+      setSent(true);
+    });
   }
 
   return (
@@ -49,8 +64,9 @@ export default function HumanBackupPage() {
                 </div>
               </div>
             </CardBody>
+            {err && <p className="mt-2 text-small text-danger" role="alert">{err}</p>}
             <CardFooter>
-              <Button onClick={submit} disabled={!topic}>Send</Button>
+              <Button onClick={submit} disabled={!topic || pending}>{pending ? "Sending…" : "Send"}</Button>
             </CardFooter>
           </>
         )}

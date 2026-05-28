@@ -15,9 +15,9 @@ describe("Onboarding", () => {
     render(<Goals />);
     expect(screen.getAllByLabelText(/Goal/i).length).toBeGreaterThanOrEqual(3);
   });
-  it("connect step shows Plaid mount stub", () => {
+  it("connect step shows the Plaid CTA", () => {
     render(<Connect />);
-    expect(screen.getByText(/Plaid Link mounts here/i)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Connect bank/i })).toBeInTheDocument();
   });
   it("tier step links to paywall", () => {
     render(<Tier />);

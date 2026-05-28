@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardTitle, Sparkline } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardTitle, Sparkline } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 
 const trajectory = [
   24310, 26100, 28200, 30800, 33500, 36900, 40200, 44100, 48800, 53200,
@@ -30,8 +31,23 @@ export default function StrategyPage() {
           <li className="rounded-md border border-border bg-bg p-3">Shift 5% from bonds to global equity → +$18K projected</li>
         </ul>
         <CardFooter>
-          <Button>Run scenarios</Button>
-          <Button variant="ghost">Talk to advisor</Button>
+          <DispatchButton
+            agentId="strategy"
+            agentType="credit_card_optimizer"
+            actionType="run_scenarios"
+            doneLabel="Scenarios queued"
+          >
+            Run scenarios
+          </DispatchButton>
+          <DispatchButton
+            agentId="strategy"
+            agentType="credit_card_optimizer"
+            actionType="request_advisor_call"
+            variant="ghost"
+            doneLabel="Advisor will reach out"
+          >
+            Talk to advisor
+          </DispatchButton>
         </CardFooter>
       </Card>
     </div>

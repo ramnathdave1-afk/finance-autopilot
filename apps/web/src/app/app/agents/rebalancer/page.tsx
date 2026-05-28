@@ -1,10 +1,16 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 
 const holdings = [
   { ticker: "VTI", target: 60, actual: 54 },
   { ticker: "VXUS", target: 25, actual: 22 },
   { ticker: "BND", target: 15, actual: 24 }
 ];
+
+// Premium agents (rebalancer, tax, strategy, human-backup) aren't in the
+// AgentType enum yet — using credit_card_optimizer as a placeholder agentType
+// so dispatch typechecks. T2 will extend the enum; the actionType field still
+// carries the real intent so the inngest router can fan out correctly.
 
 export default function RebalancerPage() {
   return (
@@ -39,8 +45,23 @@ export default function RebalancerPage() {
           Suggested trades: sell BND $1,420 → buy VTI $880 + VXUS $540.
         </CardBody>
         <CardFooter>
-          <Button>Authorize rebalance</Button>
-          <Button variant="ghost">Adjust targets</Button>
+          <DispatchButton
+            agentId="investment_rebalancer"
+            agentType="credit_card_optimizer"
+            actionType="authorize_rebalance"
+            doneLabel="Rebalance queued"
+          >
+            Authorize rebalance
+          </DispatchButton>
+          <DispatchButton
+            agentId="investment_rebalancer"
+            agentType="credit_card_optimizer"
+            actionType="adjust_targets"
+            variant="ghost"
+            doneLabel="Targets saved"
+          >
+            Adjust targets
+          </DispatchButton>
         </CardFooter>
       </Card>
 
@@ -50,7 +71,14 @@ export default function RebalancerPage() {
           Two positions show a harvestable loss totaling $612. Replacement securities staged to avoid wash-sale.
         </CardBody>
         <CardFooter>
-          <Button>Review losses</Button>
+          <DispatchButton
+            agentId="investment_rebalancer"
+            agentType="credit_card_optimizer"
+            actionType="review_tlh_losses"
+            doneLabel="Review opened"
+          >
+            Review losses
+          </DispatchButton>
         </CardFooter>
       </Card>
     </div>

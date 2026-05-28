@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 import { stubFound } from "@/lib/agents-pro-stub";
 
 export default function MissingMoneyPage() {
@@ -19,8 +20,25 @@ export default function MissingMoneyPage() {
           <CardTitle>{f.type}</CardTitle>
           <CardBody className="mt-2">Verify your details and we&apos;ll file the claim.</CardBody>
           <CardFooter>
-            <Button>Claim</Button>
-            <Button variant="ghost">Not me</Button>
+            <DispatchButton
+              agentId="missing_money"
+              agentType="missing_money"
+              actionType="file_claim"
+              target={f.source}
+              doneLabel="Claim filed"
+            >
+              Claim
+            </DispatchButton>
+            <DispatchButton
+              agentId="missing_money"
+              agentType="missing_money"
+              actionType="reject_match"
+              target={f.source}
+              variant="ghost"
+              doneLabel="Dismissed"
+            >
+              Not me
+            </DispatchButton>
           </CardFooter>
         </Card>
       ))}

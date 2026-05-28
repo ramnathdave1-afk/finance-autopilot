@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 import { stubInsurance } from "@/lib/agents-pro-stub";
 
 export default function InsurancePage() {
@@ -22,8 +23,25 @@ export default function InsurancePage() {
           </CardHeader>
           <CardTitle>{q.carrier} — ${q.premium}/mo</CardTitle>
           <CardFooter>
-            <Button>Switch</Button>
-            <Button variant="ghost">Compare</Button>
+            <DispatchButton
+              agentId="insurance_shopper"
+              agentType="insurance_shopper"
+              actionType="switch_carrier"
+              target={q.carrier}
+              doneLabel="Switch initiated"
+            >
+              Switch
+            </DispatchButton>
+            <DispatchButton
+              agentId="insurance_shopper"
+              agentType="insurance_shopper"
+              actionType="compare_quotes"
+              target={q.carrier}
+              variant="ghost"
+              doneLabel="Saved for review"
+            >
+              Compare
+            </DispatchButton>
           </CardFooter>
         </Card>
       ))}

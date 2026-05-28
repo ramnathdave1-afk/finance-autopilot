@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 
 const deductibles = [
   { category: "Home office", amount: 1240, count: 18 },
@@ -34,8 +35,23 @@ export default function TaxPrepPage() {
           ))}
         </ul>
         <CardFooter>
-          <Button>Export to TurboTax</Button>
-          <Button variant="ghost">Review transactions</Button>
+          <DispatchButton
+            agentId="tax_prep"
+            agentType="credit_card_optimizer"
+            actionType="export_to_turbotax"
+            doneLabel="Export queued"
+          >
+            Export to TurboTax
+          </DispatchButton>
+          <DispatchButton
+            agentId="tax_prep"
+            agentType="credit_card_optimizer"
+            actionType="review_transactions"
+            variant="ghost"
+            doneLabel="Review opened"
+          >
+            Review transactions
+          </DispatchButton>
         </CardFooter>
       </Card>
 

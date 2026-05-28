@@ -1,4 +1,5 @@
-import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { Badge, Card, CardBody, CardFooter, CardHeader, CardTitle } from "@fa/ui";
+import { DispatchButton } from "@/components/dispatch-button";
 import { stubCardRecs } from "@/lib/agents-pro-stub";
 
 export default function CardOptimizerPage() {
@@ -19,8 +20,25 @@ export default function CardOptimizerPage() {
           <CardTitle>Use the {r.recommended}</CardTitle>
           <CardBody className="mt-2">Earns {r.reward} in this category.</CardBody>
           <CardFooter>
-            <Button>Apply</Button>
-            <Button variant="ghost">Already have it</Button>
+            <DispatchButton
+              agentId="credit_card_optimizer"
+              agentType="credit_card_optimizer"
+              actionType="apply_card"
+              target={r.recommended}
+              doneLabel="Application drafted"
+            >
+              Apply
+            </DispatchButton>
+            <DispatchButton
+              agentId="credit_card_optimizer"
+              agentType="credit_card_optimizer"
+              actionType="mark_owned"
+              target={r.recommended}
+              variant="ghost"
+              doneLabel="Noted"
+            >
+              Already have it
+            </DispatchButton>
           </CardFooter>
         </Card>
       ))}

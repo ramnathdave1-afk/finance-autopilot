@@ -1,5 +1,6 @@
 export { cn } from "./cn";
 export { Button } from "./button";
+export type { ButtonProps } from "./button";
 export { Card, CardHeader, CardTitle, CardBody, CardFooter } from "./card";
 export { Input } from "./input";
 export { Label } from "./label";
@@ -11,3 +12,4 @@ export { VoicePlayer } from "./voice-player";
 export type { VoicePlayerProps } from "./voice-player";
 export { Sparkline } from "./sparkline";
 export type { SparklineProps } from "./sparkline";
+export { Skeleton } from "./skeleton";
