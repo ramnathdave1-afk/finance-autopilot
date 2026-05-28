@@ -1,10 +1,11 @@
-"use client";
 import Link from "next/link";
-import { Badge, Switch } from "@fa/ui";
-import { usePauseAll } from "@/lib/pause-store";
+import { currentUserId } from "@/lib/current-user";
+import { getPauseAll } from "@/lib/data/pause";
+import { PauseToggle } from "./pause-toggle";
 
-export function TopNav() {
-  const [paused, setPaused] = usePauseAll();
+export async function TopNav() {
+  const userId = await currentUserId();
+  const initialPaused = await getPauseAll(userId);
   return (
     <header className="sticky top-0 z-30 border-b border-border bg-bg/80 backdrop-blur">
       <div className="container flex h-14 items-center justify-between">
@@ -16,13 +17,7 @@ export function TopNav() {
           <Link href="/app/activity" className="hover:text-fg">Activity</Link>
           <Link href="/app/settings" className="hover:text-fg">Settings</Link>
         </nav>
-        <div className="flex items-center gap-3">
-          {paused && <Badge tone="warn">Agents paused</Badge>}
-          <label htmlFor="pause-all" className="flex items-center gap-2 cursor-pointer">
-            <span className="text-small text-fg-muted">Pause all</span>
-            <Switch id="pause-all" checked={paused} onCheckedChange={setPaused} label="Pause all agents" />
-          </label>
-        </div>
+        <PauseToggle initialPaused={initialPaused} />
       </div>
     </header>
   );

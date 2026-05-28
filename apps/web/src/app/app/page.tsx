@@ -1,4 +1,4 @@
-import { FeedCard } from "@fa/ui";
+import { FeedCardWired } from "@/components/feed-card-wired";
 import { StreaksStrip } from "@/components/streaks-strip";
 import { currentUserId } from "@/lib/current-user";
 import { getFeedCards } from "@/lib/data/feed";
@@ -17,7 +17,7 @@ export default async function FeedPage() {
         {cards.length === 0 ? (
           <p className="text-small text-fg-muted">No agent activity yet. Run your first scan to see updates here.</p>
         ) : (
-          cards.map((c) => <FeedCard key={c.id} card={c} />)
+          cards.map((c) => <FeedCardWired key={c.id} card={c} />)
         )}
       </div>
     </div>
