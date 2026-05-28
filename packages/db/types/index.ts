@@ -244,6 +244,8 @@ export interface BillNegotiationRow {
   call_started_at: string | null;
   call_ended_at: string | null;
   call_duration_seconds: number | null;
+  /** Twilio Call SID — set so a retried run resumes the same call. */
+  call_sid: string | null;
   voice_recording_url: string | null;
   transcript_url: string | null;
   notes: string | null;

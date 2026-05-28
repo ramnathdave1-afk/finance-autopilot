@@ -57,6 +57,9 @@ create table if not exists public.bill_negotiations (
   call_started_at timestamptz,
   call_ended_at timestamptz,
   call_duration_seconds int,
+  -- Twilio Call SID of the placed call. Persisted so a retried agent run can
+  -- RESUME polling the same outbound call instead of dialing the provider again.
+  call_sid text,
   voice_recording_url text,
   transcript_url text,
   notes text,

@@ -1,9 +1,12 @@
 "use client";
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { Badge, Button, Card, CardBody, CardFooter, CardHeader, CardTitle, Input, Label, VoicePlayer } from "@fa/ui";
-import { dispatchAction } from "@/app/actions/agents";
+import { approveActionAction, dispatchAction, getActionStatus } from "@/app/actions/agents";
+import { createBillForNegotiation } from "@/app/actions/bills";
 
 type Status = "idle" | "authorize" | "calling" | "complete" | "failed";
+
+const POLL_INTERVAL_MS = 4000;
 
 export default function BillNegotiation() {
   const [provider, setProvider] = useState("");
@@ -13,27 +16,90 @@ export default function BillNegotiation() {
   const [status, setStatus] = useState<Status>("idle");
   const [pending, start] = useTransition();
   const [err, setErr] = useState<string | null>(null);
+  const [actionId, setActionId] = useState<string | null>(null);
+  const [roi, setRoi] = useState<number | null>(null);
+  const [recordingUrl, setRecordingUrl] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll the dispatched action's real status while the call is in flight. The
+  // voice agent (T4) drives the agent_action row to a terminal state and writes
+  // bill_negotiations.voice_recording_url; we reflect exactly what the backend
+  // reports — no simulated completion.
+  useEffect(() => {
+    if (status !== "calling" || !actionId) return;
+    let cancelled = false;
+    async function poll() {
+      const res = await getActionStatus(actionId as string);
+      if (cancelled) return;
+      if (res.status === "succeeded") {
+        setRoi(res.roi);
+        setRecordingUrl(res.voiceRecordingUrl ?? null);
+        setStatus("complete");
+      } else if (res.status === "failed" || res.status === "escalated" || res.status === "cancelled") {
+        setErr("The negotiation could not be completed. We'll review and follow up.");
+        setStatus("failed");
+      }
+    }
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
+    void poll();
+    return () => {
+      cancelled = true;
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, [status, actionId]);
 
   function authorize() {
     setErr(null);
     start(async () => {
+      // 1. Resolve a real bill row + provider support line. The agent dials
+      // input.providerPhone and reads input.billId — neither is a free-text
+      // field, so we create the bill and look up the support number first.
+      const bill = await createBillForNegotiation({
+        provider,
+        currentAmount: Number(current),
+      });
+      if (!bill.ok || !bill.billId || !bill.providerPhone) {
+        setErr(bill.error ?? "Could not prepare this bill for negotiation");
+        setStatus("failed");
+        return;
+      }
+
+      // 2. Dispatch with the EXACT field names BillNegotiationInput expects:
+      // { billId, providerPhone, targetAmount }. requiresApproval:true is the
+      // authorization gate for a real outbound call — the row lands
+      // awaiting_approval and does NOT run until we approve it below.
       const res = await dispatchAction({
         agentId: "bill_negotiation",
         agentType: "bill_negotiation",
         actionType: "negotiate",
         target: provider,
-        requiresApproval: false
+        requiresApproval: true,
+        input: {
+          billId: bill.billId,
+          providerPhone: bill.providerPhone,
+          targetAmount: Number(target),
+        },
       });
-      if (!res.ok) {
+      if (!res.ok || !res.actionId) {
         setErr(res.error ?? "Could not start negotiation");
         setStatus("failed");
         return;
       }
+
+      // 3. The user just authorized the call — approve the row, which emits the
+      // ROUTER_EVENT so the agent actually runs. Without this the row sits in
+      // awaiting_approval forever and the call never happens.
+      const approved = await approveActionAction(res.actionId);
+      if (!approved.ok) {
+        setErr(approved.error ?? "Could not authorize the call");
+        setStatus("failed");
+        return;
+      }
+
+      setActionId(res.actionId);
+      // Poll agent_actions for the terminal status + recording — never fake a
+      // completion.
       setStatus("calling");
-      // T4's voice agent picks up via Inngest. UI polls activity log or
-      // realtime channel for status — for now we simulate completion so
-      // users see the end state.
-      window.setTimeout(() => setStatus("complete"), 1500);
     });
   }
 
@@ -108,20 +174,27 @@ export default function BillNegotiation() {
       {status === "complete" && (
         <Card>
           <CardHeader>
-            <Badge tone="accent">Saved ${Number(current) - Number(target)}/mo</Badge>
+            <Badge tone="accent">
+              {roi != null ? `Saved $${roi.toFixed(0)}/yr` : "Negotiation complete"}
+            </Badge>
           </CardHeader>
-          <CardTitle>Done. New rate: ${target}/mo.</CardTitle>
-          <CardBody className="mt-2">Full call recording below. Listen, or share with PII masked.</CardBody>
-          <div className="mt-4">
-            <VoicePlayer
-              src="/audio/sample-negotiation.mp3"
-              durationSec={247}
-              transcript={`Agent: Hi, calling about my ${provider} account…\n[transcript continues — masked PII]`}
-              shareable
-            />
-          </div>
+          <CardTitle>Done with {provider}.</CardTitle>
+          <CardBody className="mt-2">
+            {recordingUrl
+              ? "Full call recording below. Listen, or share with PII masked."
+              : "The call wrapped up. A recording will appear here once it finishes processing."}
+          </CardBody>
+          {recordingUrl && (
+            <div className="mt-4">
+              <VoicePlayer
+                src={recordingUrl}
+                transcript={`Call with ${provider} — transcript available with PII masked.`}
+                shareable
+              />
+            </div>
+          )}
           <CardFooter>
-            <Button onClick={() => setStatus("idle")}>Negotiate another</Button>
+            <Button onClick={() => { setActionId(null); setRoi(null); setRecordingUrl(null); setStatus("idle"); }}>Negotiate another</Button>
           </CardFooter>
         </Card>
       )}

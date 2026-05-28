@@ -17,9 +17,46 @@ import "@fa/agent-auto-saver";
 import "@fa/agent-round-up";
 import "@fa/goal-funder";
 
+// Tier-2 agents. The first five register their AgentDefinition via
+// defineAgent() at module load, so a bare side-effect import is enough.
+import "@fa/agent-bill-negotiation";
+import "@fa/agent-charge-dispute";
+import "@fa/agent-card-optimizer";
+import "@fa/agent-missing-money";
+import "@fa/agent-refinance-watcher";
+
+// Insurance shopper is dependency-injected (its agent is built lazily around a
+// QuotePort), so importing the module does NOT register it. We must call the
+// singleton builder once to register the ('insurance_shopper','requote') tuple.
+//
+// IMPORTANT: httpQuotePortFromEnv() throws at CONSTRUCTION when the aggregator
+// env keys are missing (honesty contract — it never fabricates a port). Calling
+// it at module scope would crash Next.js's build-time page-data collection.
+// Instead we hand the builder a lazy port that defers env resolution to the
+// first fetchQuotes() call — so an unconfigured env still throws HONESTLY at
+// run time (never faking a quote), but module load / build stay clean.
+import {
+  getInsuranceShopperAgent,
+  httpQuotePortFromEnv,
+  type QuotePort,
+  type QuoteRequest,
+} from "@fa/agent-insurance-shopper";
+import { refreshRates } from "@fa/agent-refinance-watcher";
+
 import { runAgent } from "@fa/inngest";
 import { _getRegistry } from "@fa/inngest/src/define-agent";
 import { cronSpecs, hourlySyncUserHandler } from "@fa/plaid";
+
+// Lazy QuotePort: resolves the env-driven HTTP port on first use. Still throws
+// (does not fake) when INSURANCE_AGGREGATOR_URL/_API_KEY are unset — just at
+// call time rather than module-load time.
+const lazyQuotePort: QuotePort = {
+  fetchQuotes: (req: QuoteRequest) => httpQuotePortFromEnv().fetchQuotes(req),
+};
+
+// Register the insurance-shopper agent exactly once (defineAgent throws on a
+// duplicate tuple, and getInsuranceShopperAgent memoizes the single instance).
+getInsuranceShopperAgent(lazyQuotePort);
 
 const inngest = new Inngest({
   id: "fa-pilot",
@@ -88,7 +125,22 @@ const plaidFunctions = [
   ),
 ];
 
-const functions = [...agentFunctions, ...plaidFunctions];
+// Refinance-watcher daily rate ingestion. Pulls today's published rates through
+// the env-driven HttpRatePort and writes them to rate_snapshots before per-user
+// evaluation runs. refreshRates() no-ops cleanly (returns skipped:'not_configured')
+// when REFI_RATE_API_URL / REFI_RATE_API_KEY are unset — it never fabricates a
+// rate, so this is safe to schedule even before credentials are provisioned.
+// (Per-user runRefinanceWatcher fan-out is dispatched via the UI / a future
+// pro-tier scan once a "list enabled users" helper exists — see integration notes.)
+const refinanceFunctions = [
+  inngest.createFunction(
+    { id: "refi-rate-refresh", retries: 3 },
+    { cron: "TZ=America/New_York 0 6 * * *" },
+    () => refreshRates(),
+  ),
+];
+
+const functions = [...agentFunctions, ...plaidFunctions, ...refinanceFunctions];
 
 export const { GET, POST, PUT } = serve({
   client: inngest,

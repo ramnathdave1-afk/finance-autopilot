@@ -15,6 +15,21 @@ vi.mock("@fa/agent-auto-saver", () => ({}));
 vi.mock("@fa/agent-round-up", () => ({}));
 vi.mock("@fa/goal-funder", () => ({}));
 
+// Tier-2 agents. The route imports these for their defineAgent side effects;
+// the fan-out cron under test doesn't touch them, so empty stubs suffice. The
+// refinance + insurance modules also expose named functions the route calls at
+// module scope (refreshRates, getInsuranceShopperAgent), so stub those too.
+vi.mock("@fa/agent-bill-negotiation", () => ({}));
+vi.mock("@fa/agent-charge-dispute", () => ({}));
+vi.mock("@fa/agent-card-optimizer", () => ({}));
+vi.mock("@fa/agent-missing-money", () => ({}));
+vi.mock("@fa/agent-refinance-watcher", () => ({
+  refreshRates: vi.fn().mockResolvedValue({ source: "mock", fetched: 0, written: 0, skipped: "not_configured" }),
+}));
+vi.mock("@fa/agent-insurance-shopper", () => ({
+  getInsuranceShopperAgent: vi.fn(),
+}));
+
 vi.mock("@fa/inngest", () => ({ runAgent: vi.fn() }));
 vi.mock("@fa/inngest/src/define-agent", () => ({
   _getRegistry: () => new Map(),
@@ -92,6 +107,11 @@ describe("Plaid hourly cron fan-out", () => {
     // The per-user sync function listens on the same event name.
     const userSync = registered.find((r) => r.config.id === "plaid-user-sync");
     expect(userSync!.trigger.event).toBe("plaid.user.sync");
+
+    // The refinance-watcher daily rate-refresh cron is registered alongside.
+    const refiRefresh = registered.find((r) => r.config.id === "refi-rate-refresh");
+    expect(refiRefresh, "refi-rate-refresh cron should be registered").toBeTruthy();
+    expect(refiRefresh!.trigger.cron).toContain("6 * * *");
   });
 
   it("sends no events when there are no active users", async () => {

@@ -1,6 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
-import { approveAction, logStep, markCancelled, startAction } from "@fa/db";
+import { approveAction, createServiceClient, logStep, markCancelled, startAction } from "@fa/db";
 import type { AgentType } from "@fa/db/types";
 import { ROUTER_EVENT } from "@fa/inngest";
 import { hasSupabaseEnv } from "@/lib/data/env";
@@ -8,6 +8,54 @@ import { currentUserId } from "@/lib/current-user";
 import { getInngest } from "@/lib/api/inngest-client";
 
 export type ActionResult = { ok: boolean; error?: string };
+
+export interface ActionStatusResult {
+  status: string;
+  roi: number | null;
+  /** Voice recording URL for the bill-negotiation call, when present. */
+  voiceRecordingUrl?: string | null;
+}
+
+/**
+ * Poll a dispatched agent_action's terminal status from the UI. Returns the
+ * current status + ROI, and (for bill negotiation) the call recording URL once
+ * the voice agent has populated bill_negotiations.voice_recording_url. Without
+ * Supabase env (local/demo) the action is reported as still pending so the UI
+ * never fabricates a completion.
+ */
+export async function getActionStatus(actionId: string): Promise<ActionStatusResult> {
+  if (!hasSupabaseEnv()) return { status: "pending", roi: null };
+  try {
+    const supabase = createServiceClient();
+    const { data, error } = await supabase
+      .from("agent_actions")
+      .select("status, roi_amount, agent_type")
+      .eq("id", actionId)
+      .maybeSingle();
+    if (error || !data) return { status: "pending", roi: null };
+    const row = data as { status: string; roi_amount: number | null; agent_type: string };
+
+    let voiceRecordingUrl: string | null | undefined;
+    if (row.agent_type === "bill_negotiation") {
+      const { data: neg } = await supabase
+        .from("bill_negotiations")
+        .select("voice_recording_url")
+        .eq("agent_action_id", actionId)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      voiceRecordingUrl = (neg as { voice_recording_url: string | null } | null)?.voice_recording_url ?? null;
+    }
+
+    return {
+      status: row.status,
+      roi: row.roi_amount ?? null,
+      ...(voiceRecordingUrl !== undefined ? { voiceRecordingUrl } : {}),
+    };
+  } catch {
+    return { status: "pending", roi: null };
+  }
+}
 
 export async function approveActionAction(actionId: string): Promise<ActionResult> {
   if (!hasSupabaseEnv()) return { ok: true };
