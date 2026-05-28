@@ -207,6 +207,8 @@ export interface Database {
       agent_actions: TableShape<AgentActionRow>;
       waitlist_signups: TableShape<WaitlistSignupRow>;
     };
+    Views: Record<string, never>;
+    Functions: Record<string, never>;
     Enums: {
       pricing_tier: PricingTier;
       subscription_status: SubscriptionStatus;
@@ -215,11 +217,21 @@ export interface Database {
       agent_type: AgentType;
       action_status: ActionStatus;
     };
+    CompositeTypes: Record<string, never>;
   };
 }
 
+type Relationship = {
+  foreignKeyName: string;
+  columns: string[];
+  isOneToOne?: boolean;
+  referencedRelation: string;
+  referencedColumns: string[];
+};
+
 type TableShape<Row> = {
   Row: Row;
-  Insert: Partial<Row> & { user_id?: string };
+  Insert: Partial<Row>;
   Update: Partial<Row>;
+  Relationships: Relationship[];
 };

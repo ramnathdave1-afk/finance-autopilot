@@ -2,9 +2,8 @@
 // All RLS-aware: pass in an authenticated SupabaseClient.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@fa/db/types';
 
-type Client = SupabaseClient<Database>;
+type Client = SupabaseClient;
 
 export interface CategoryDelta {
   category: string;

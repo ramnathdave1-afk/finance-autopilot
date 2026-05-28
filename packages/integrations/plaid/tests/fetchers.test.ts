@@ -37,7 +37,10 @@ function makeShim(seed: {
     api.select = () => api;
     api.eq = eq;
     api.gte = (k: string, v: unknown) => {
-      rows = rows.filter((r) => (r as Record<string, unknown>)[k]! >= (v as never));
+      rows = rows.filter((r) => {
+        const rv = (r as Record<string, unknown>)[k] as string | number | undefined;
+        return rv !== undefined && (rv as never) >= (v as never);
+      });
       return api;
     };
     api.gt = (k: string, v: number) => {

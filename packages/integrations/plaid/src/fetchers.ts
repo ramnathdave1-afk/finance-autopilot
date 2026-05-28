@@ -3,9 +3,11 @@
 // so user_id = auth.uid() is enforced. We do NOT use the service client here.
 
 import type { SupabaseClient } from '@supabase/supabase-js';
-import type { Database } from '@fa/db/types';
 
-type Client = SupabaseClient<Database>;
+// We accept an unparameterized SupabaseClient — callers (T1) can pass their
+// strongly-typed `SupabaseClient<Database>` and it widens cleanly. Keeping
+// the constraint loose here avoids re-fighting supabase-js generic inference.
+type Client = SupabaseClient;
 
 export interface NetWorth {
   assets: number;
@@ -85,8 +87,8 @@ export async function getBalances(supabase: Client, userId: string): Promise<Acc
     id: a.id,
     institution: a.institution_name,
     type: a.account_type,
-    subtype: a.account_subtype,
-    mask: a.mask,
+    subtype: a.account_subtype ?? null,
+    mask: a.mask ?? null,
     current: Number(a.current_balance ?? 0),
     available: a.available_balance === null ? null : Number(a.available_balance),
   }));
