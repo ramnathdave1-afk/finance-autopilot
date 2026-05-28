@@ -26,9 +26,23 @@ describe('verifyPlaidJwt', () => {
     expect(await verifyPlaidJwt(null, '')).toBe(true);
   });
 
-  it('fails-closed in production until wired up', async () => {
+  it('rejects missing header in production', async () => {
     process.env.PLAID_ENV = 'production';
     expect(await verifyPlaidJwt(null, '')).toBe(false);
+    delete process.env.PLAID_ENV;
+  });
+
+  it('rejects malformed JWT in production', async () => {
+    process.env.PLAID_ENV = 'production';
+    expect(await verifyPlaidJwt('not.a.jwt', '')).toBe(false);
+    delete process.env.PLAID_ENV;
+  });
+
+  it('rejects non-ES256 algorithm in production', async () => {
+    process.env.PLAID_ENV = 'production';
+    // RS256 header { "alg":"RS256","kid":"abc" }
+    const header = 'eyJhbGciOiJSUzI1NiIsImtpZCI6ImFiYyJ9.eyJ9.sig';
+    expect(await verifyPlaidJwt(header, '')).toBe(false);
     delete process.env.PLAID_ENV;
   });
 });
