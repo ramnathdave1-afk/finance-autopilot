@@ -33,6 +33,16 @@ export const BANK_ENV_KEY: Record<BankKey, string> = {
 
 export interface BankDisputeRequest {
   bank: BankKey;
+  /**
+   * Stable per-dispute key (the disputes row id) the agent sends so the bank
+   * channel can DEDUPE a retried filing. The agent may re-issue fileDispute for
+   * the same dispute if a transient DB failure struck AFTER a successful bank
+   * call but BEFORE we persisted the case id — re-issuing with the same key MUST
+   * return the original case rather than open a second chargeback. Real per-bank
+   * APIs accept an idempotency key for exactly this; the production stub forwards
+   * it (TODO), and mockBankDisputePort honors it.
+   */
+  idempotencyKey: string;
   /** Masked-friendly identifier — we pass the internal txn id, not the PAN. */
   transactionId: string;
   amount: number;
@@ -93,7 +103,9 @@ export function envBankDisputePort(): BankDisputePort {
       // Credential present but the real channel is not implemented yet. We must
       // NOT return ok:true here — that would be pretending a filing happened.
       // TODO(integrate-bank-api): call the per-bank dispute API / drive the web
-      // flow using `credential`, then return the real bankCaseId.
+      // flow using `credential`, forwarding `req.idempotencyKey` as the bank's
+      // idempotency header so a retried filing dedupes to the original case,
+      // then return the real bankCaseId.
       throw new BankNotConfiguredError(req.bank);
     },
   };

@@ -17,7 +17,7 @@ const dbState = {
     refund_eligible: boolean;
     roi_amount: number | null;
   }>(),
-  subscriptions: new Map<string, { id: string; status: 'active' | 'cancelled'; cancellation_method: string | null }>(),
+  subscriptions: new Map<string, { id: string; merchant: string; amount: number; frequency: 'monthly' | 'annual' | 'weekly'; status: 'active' | 'cancelled'; cancellation_method: string | null }>(),
   refundUpdates: [] as string[],
   subscriptionCancelCalls: [] as Array<{ id: string; method: string }>,
   // Track if the refund_eligible column should simulate "missing" — false by default.
@@ -172,8 +172,19 @@ const SCENARIOS: Array<{ merchant: typeof WEB_MERCHANTS[number]; outcome: 'succe
   { merchant: SCENARIO_WEB_MERCHANTS[SCENARIO_WEB_MERCHANTS.length - 1]!, outcome: 'failure' as const, subSuffix: 'fail' },
 ];
 
-const seedSubscription = (subId: string) => {
-  dbState.subscriptions.set(subId, { id: subId, status: 'active', cancellation_method: null });
+const seedSubscription = (
+  subId: string,
+  merchant: string,
+  opts?: { amount?: number; frequency?: 'monthly' | 'annual' | 'weekly' },
+) => {
+  dbState.subscriptions.set(subId, {
+    id: subId,
+    merchant,
+    amount: opts?.amount ?? 0,
+    frequency: opts?.frequency ?? 'monthly',
+    status: 'active',
+    cancellation_method: null,
+  });
 };
 
 const runOne = async (subId: string, merchantKey: string, scenarioName: string) => {
@@ -237,7 +248,7 @@ describe('subscriptionKillerAgent — 10 scenarios', () => {
     for (let i = 0; i < SCENARIOS.length; i++) {
       const { merchant, outcome, subSuffix } = SCENARIOS[i]!;
       const subId = `sub-${merchant.merchantKey}-${subSuffix}-${i}`;
-      seedSubscription(subId);
+      seedSubscription(subId, merchant.displayName);
 
       const scenarioName =
         outcome === 'success' ? 'generic-web-success' : 'web-failure-cancel-blocked';
@@ -281,7 +292,7 @@ describe('subscriptionKillerAgent — 10 scenarios', () => {
     if (!voiceMerchant) return;
 
     const subId = `sub-${voiceMerchant.merchantKey}`;
-    seedSubscription(subId);
+    seedSubscription(subId, voiceMerchant.displayName);
 
     // No HAR needed — voice path never opens a session. But factory must be
     // installed in case the code path changes; use generic-web-success.
@@ -303,6 +314,9 @@ describe('subscriptionKillerAgent — 10 scenarios', () => {
     const subId = `sub-${m.merchantKey}`;
     dbState.subscriptions.set(subId, {
       id: subId,
+      merchant: m.displayName,
+      amount: 0,
+      frequency: 'monthly',
       status: 'cancelled',
       cancellation_method: 'web',
     });
@@ -315,11 +329,61 @@ describe('subscriptionKillerAgent — 10 scenarios', () => {
     expect(dbState.subscriptionCancelCalls.length).toBe(0);
   });
 
+  it('ROI is computed from the real subscription row amount + frequency, not the registry estimate', async () => {
+    const m = WEB_MERCHANTS[0]!;
+    const subId = `sub-roi-${m.merchantKey}`;
+    // Row amount differs from the registry estimate so we can prove the source.
+    seedSubscription(subId, m.displayName, { amount: 9.99, frequency: 'monthly' });
+
+    setBrowserAdapterFactory(async () => replayFromHar(HAR_PATH, 'generic-web-success'));
+    const result = await runOne(subId, m.merchantKey, 'generic-web-success');
+    expect(result.status).toBe('succeeded');
+    // 9.99 * 12 = 119.88 — driven by the row, NOT monthlyAmountEstimate*12.
+    expect(result.result?.roi).toBeCloseTo(119.88, 2);
+    expect(result.result?.roi).not.toBeCloseTo((m.monthlyAmountEstimate ?? 0) * 12, 2);
+  });
+
+  it('annual-frequency row ROI uses the annual multiplier (x1)', async () => {
+    const m = WEB_MERCHANTS[0]!;
+    const subId = `sub-roi-annual-${m.merchantKey}`;
+    seedSubscription(subId, m.displayName, { amount: 120, frequency: 'annual' });
+    setBrowserAdapterFactory(async () => replayFromHar(HAR_PATH, 'generic-web-success'));
+    const result = await runOne(subId, m.merchantKey, 'generic-web-success');
+    expect(result.status).toBe('succeeded');
+    expect(result.result?.roi).toBeCloseTo(120, 2);
+  });
+
+  it('refuses to cancel when the subscription row merchant does not match the cancel target', async () => {
+    const m = WEB_MERCHANTS[0]!;
+    const subId = `sub-mismatch-${m.merchantKey}`;
+    // Row is for a DIFFERENT merchant than the one we are asked to cancel.
+    seedSubscription(subId, 'Some Other Service', { amount: 5, frequency: 'monthly' });
+    setBrowserAdapterFactory(async () => replayFromHar(HAR_PATH, 'generic-web-success'));
+    const result = await runOne(subId, m.merchantKey, 'generic-web-success');
+    // Mismatch throws → agent escalates after retries; row stays active.
+    expect(result.status).toBe('escalated');
+    expect(dbState.subscriptions.get(subId)?.status).toBe('active');
+    expect(dbState.subscriptionCancelCalls.length).toBe(0);
+    const row = dbState.actionsById.get(result.actionId);
+    const audit = (row?.audit_log ?? []) as Array<{ step: string }>;
+    expect(audit.map((s) => s.step)).toContain('merchant-mismatch');
+  });
+
+  it('throws (then escalates) when the subscription row does not exist', async () => {
+    const m = WEB_MERCHANTS[0]!;
+    const subId = `sub-missing-row-${m.merchantKey}`;
+    // No seedSubscription → getSubscription returns null.
+    setBrowserAdapterFactory(async () => replayFromHar(HAR_PATH, 'generic-web-success'));
+    const result = await runOne(subId, m.merchantKey, 'generic-web-success');
+    expect(result.status).toBe('escalated');
+    expect(dbState.subscriptionCancelCalls.length).toBe(0);
+  });
+
   it('refund_eligible swallows missing-column error with TODO marker', async () => {
     dbState.simulateMissingRefundColumn = true;
     const m = WEB_MERCHANTS[WEB_MERCHANTS.length - 1]!;
     const subId = `sub-missing-${m.merchantKey}`;
-    seedSubscription(subId);
+    seedSubscription(subId, m.displayName);
     const result = await runOne(subId, m.merchantKey, 'web-failure-cancel-blocked');
     expect(result.status).toBe('escalated');
     const row = dbState.actionsById.get(result.actionId);

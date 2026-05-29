@@ -96,7 +96,7 @@ export function makeFakeAdapter(scenario: HarScenario): FakeAdapterFromHar {
     async act(instruction) {
       next('act', instruction);
     },
-    async extract<T>(_schema: ZodSchema<T>): Promise<T> {
+    async extract<T>(_schema: ZodSchema<T>, _instruction?: string): Promise<T> {
       const entry = next('extract');
       return (entry.response?.data ?? {}) as T;
     },

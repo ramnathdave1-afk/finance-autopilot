@@ -27,6 +27,8 @@ interface NegRow {
   call_started_at: string | null;
   call_ended_at: string | null;
   call_duration_seconds: number | null;
+  call_sid: string | null;
+  call_script: string | null;
   voice_recording_url: string | null;
   transcript_url: string | null;
   notes: string | null;
@@ -105,6 +107,10 @@ function makeNegChain() {
   return chain;
 }
 
+// createServiceClient is a vi.fn so individual tests can swap the backing
+// client (e.g. to simulate a failing call_sid write). Default → defaultClient().
+const createServiceClientMock = vi.fn(() => defaultClient());
+
 vi.mock('@fa/db', () => ({
   startAction: (...a: unknown[]) => startActionMock(...(a as Parameters<typeof startActionMock>)),
   logStep: (...a: unknown[]) => logStepMock(...(a as Parameters<typeof logStepMock>)),
@@ -112,7 +118,11 @@ vi.mock('@fa/db', () => ({
   markSucceeded: async (id: string, roi: number | null) => transition(id, 'succeeded', { roi_amount: roi }),
   markFailed: async (id: string, msg: string) => transition(id, 'failed', { error_message: msg }),
   markEscalated: async (id: string, reason: string) => transition(id, 'escalated', { reason }),
-  createServiceClient: () => ({
+  createServiceClient: () => createServiceClientMock(),
+}));
+
+function defaultClient() {
+  return {
     from(table: string) {
       if (table === 'bills') {
         let capturedId = '';
@@ -134,33 +144,47 @@ vi.mock('@fa/db', () => ({
         return chain;
       }
       if (table === 'bill_negotiations') {
+        const insertRow = (row: Record<string, unknown>): NegRow => {
+          dbState.negSeq += 1;
+          const id = `neg-${dbState.negSeq}`;
+          const neg: NegRow = {
+            id,
+            user_id: row.user_id as string,
+            bill_id: row.bill_id as string,
+            agent_action_id: (row.agent_action_id as string) ?? null,
+            status: (row.status as string) ?? 'pending',
+            target_amount: (row.target_amount as number) ?? null,
+            achieved_amount: null,
+            monthly_savings: null,
+            call_started_at: null,
+            call_ended_at: null,
+            call_duration_seconds: null,
+            call_sid: null,
+            call_script: (row.call_script as string) ?? null,
+            voice_recording_url: null,
+            transcript_url: null,
+            notes: null,
+          };
+          dbState.negotiations.set(id, neg);
+          return neg;
+        };
         return {
           insert: (row: Record<string, unknown>) => ({
             select: () => ({
-              single: async () => {
-                dbState.negSeq += 1;
-                const id = `neg-${dbState.negSeq}`;
-                const neg: NegRow = {
-                  id,
-                  user_id: row.user_id as string,
-                  bill_id: row.bill_id as string,
-                  agent_action_id: (row.agent_action_id as string) ?? null,
-                  status: (row.status as string) ?? 'pending',
-                  target_amount: (row.target_amount as number) ?? null,
-                  achieved_amount: null,
-                  monthly_savings: null,
-                  call_started_at: null,
-                  call_ended_at: null,
-                  call_duration_seconds: null,
-                  voice_recording_url: null,
-                  transcript_url: null,
-                  notes: null,
-                };
-                dbState.negotiations.set(id, neg);
-                return { data: neg, error: null };
-              },
+              single: async () => ({ data: insertRow(row), error: null }),
             }),
           }),
+          // upsert(onConflict: agent_action_id, ignoreDuplicates) — DO NOTHING
+          // on conflict. The FULL unique index on agent_action_id is what backs
+          // this; a duplicate action id must NOT create a second row.
+          upsert: (row: Record<string, unknown>, _opts: unknown) => {
+            const actionId = row.agent_action_id as string;
+            const dup = [...dbState.negotiations.values()].find(
+              (n) => n.agent_action_id === actionId,
+            );
+            if (!dup) insertRow(row);
+            return Promise.resolve({ error: null });
+          },
           update: (patch: Record<string, unknown>) => ({
             eq: async (_c: string, id: string) => {
               const neg = dbState.negotiations.get(id);
@@ -173,8 +197,8 @@ vi.mock('@fa/db', () => ({
       }
       throw new Error(`unexpected table ${table}`);
     },
-  }),
-}));
+  };
+}
 
 // Mock @fa/claude — script gen + outcome analysis. The outcome verdict is
 // driven per-test via claudeOutcome.
@@ -297,6 +321,8 @@ describe('billNegotiationAgent', () => {
     claudeOutcome.savingsAchieved = true;
     claudeOutcome.achievedAmount = 60;
     claudeOutcome.reason = 'rep agreed to $60';
+    createServiceClientMock.mockReset();
+    createServiceClientMock.mockImplementation(() => defaultClient());
     _resetAdapter();
   });
 
@@ -421,6 +447,130 @@ describe('billNegotiationAgent', () => {
     expect(dbState.negotiations.size).toBe(1);
     const neg = dbState.negotiations.get('neg-1');
     expect(neg?.status).toBe('succeeded');
+  });
+
+  it('persists the script to call_script BEFORE dialing (TwiML route looks it up by id)', async () => {
+    seedBill('bill-script', 90);
+    const mock = new MockTwilioAdapter({
+      finalStatus: 'completed',
+      transcriptText: 'Rep: I can drop you to $60/mo.',
+    });
+    // Assert the row already carries call_script + status calling at dial time.
+    mock.placeCall = vi.fn(async (input: PlaceCallInput): Promise<PlacedCall> => {
+      const neg = [...dbState.negotiations.values()][0];
+      expect(neg?.status).toBe('calling');
+      expect(neg?.call_script).toBe('Hello, I am calling about my bill...');
+      // call_sid is NOT yet persisted at the moment we dial.
+      expect(neg?.call_sid).toBeNull();
+      return { callSid: `CA_${input.idempotencyKey}`, status: 'in-progress' };
+    });
+    setAdapter(mock);
+
+    const res = await runOne('bill-script', 60);
+    expect(res.status).toBe('succeeded');
+  });
+
+  it('marker set but call_sid write failed → does NOT re-dial, escalates (no double-dial)', async () => {
+    // Reproduce finding 2: placeCall succeeds, then the SEPARATE call_sid write
+    // throws (e.g. transient DB error) → runNegotiation throws → defineAgent
+    // retries. On the retry the row carries the 'calling' marker but NO
+    // call_sid. The agent must NOT place a second call to the provider; it
+    // routes to human review and escalates.
+    seedBill('bill-7', 90);
+
+    const mock = new MockTwilioAdapter({
+      finalStatus: 'completed',
+      transcriptText: 'Rep: I can drop you to $60/mo.',
+    });
+    setAdapter(mock);
+
+    // Swap in a client whose bill_negotiations update FAILS on the dial-result
+    // write (the patch that carries only call_sid), simulating the separate
+    // call_sid write failing after a successful dial.
+    const negs = dbState.negotiations;
+    const originalSet = negs.set.bind(negs);
+    const failingClient = {
+      from(table: string) {
+        if (table === 'bill_negotiations') {
+          return {
+            upsert: (row: Record<string, unknown>, _o: unknown) => {
+              const actionId = row.agent_action_id as string;
+              const dup = [...negs.values()].find((n) => n.agent_action_id === actionId);
+              if (!dup) {
+                dbState.negSeq += 1;
+                const id = `neg-${dbState.negSeq}`;
+                originalSet(id, {
+                  id,
+                  user_id: row.user_id as string,
+                  bill_id: row.bill_id as string,
+                  agent_action_id: actionId ?? null,
+                  status: (row.status as string) ?? 'pending',
+                  target_amount: (row.target_amount as number) ?? null,
+                  achieved_amount: null,
+                  monthly_savings: null,
+                  call_started_at: null,
+                  call_ended_at: null,
+                  call_duration_seconds: null,
+                  call_sid: null,
+                  call_script: (row.call_script as string) ?? null,
+                  voice_recording_url: null,
+                  transcript_url: null,
+                  notes: null,
+                });
+              }
+              return Promise.resolve({ error: null });
+            },
+            update: (patch: Record<string, unknown>) => ({
+              eq: async (_c: string, id: string) => {
+                // The dial-result write is the one carrying ONLY call_sid.
+                if (patch.call_sid !== undefined && patch.status === undefined) {
+                  return { error: { message: 'transient db write failed' } };
+                }
+                const neg = negs.get(id);
+                if (neg) Object.assign(neg, patch);
+                return { error: null };
+              },
+            }),
+            select: () => makeNegChain(),
+          };
+        }
+        // Delegate bills to the simple seeded map.
+        if (table === 'bills') {
+          let capturedId = '';
+          const chain = {
+            select: () => chain,
+            eq: (_c: string, val: string) => { capturedId = val; return chain; },
+            maybeSingle: async () => ({ data: dbState.bills.get(capturedId) ?? null, error: null }),
+            update: (p: { last_negotiated_at?: string }) => ({
+              eq: async (_c: string, id: string) => {
+                const b = dbState.bills.get(id);
+                if (b && p.last_negotiated_at) b.last_negotiated_at = p.last_negotiated_at;
+                return { error: null };
+              },
+            }),
+          };
+          return chain;
+        }
+        throw new Error(`unexpected table ${table}`);
+      },
+    };
+    createServiceClientMock.mockImplementation(
+      () => failingClient as unknown as ReturnType<typeof defaultClient>,
+    );
+
+    try {
+      const res = await runOne('bill-7', 60);
+      // First attempt: dial succeeds, call_sid write fails → updateNegotiation
+      // throws → agent retries. Retry sees 'calling' + no call_sid → escalates.
+      expect(res.status).toBe('escalated');
+      // placeCall must have happened EXACTLY once — no double-dial.
+      expect(mock.placeCall).toHaveBeenCalledTimes(1);
+      const neg = [...negs.values()].find((n) => n.bill_id === 'bill-7');
+      expect(neg?.status).toBe('negotiating'); // routed to human review
+      expect(neg?.call_sid).toBeNull();
+    } finally {
+      createServiceClientMock.mockReset();
+    }
   });
 
   it('completed call with NO transcript → needs review, escalates (no false no_savings)', async () => {

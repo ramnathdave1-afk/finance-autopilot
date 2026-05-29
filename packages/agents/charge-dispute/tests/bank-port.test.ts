@@ -8,8 +8,9 @@ import {
 } from '../src/bank-port';
 import { mockBankDisputePort } from '../src/bank-port.mock';
 
-const req = (bank: SupportedBank) => ({
+const req = (bank: SupportedBank, idempotencyKey = 'dispute-1') => ({
   bank,
+  idempotencyKey,
   transactionId: 'txn-12345678',
   amount: 42,
   reason: 'duplicate',
@@ -61,5 +62,18 @@ describe('bank-port — honesty contract', () => {
     const res = await port.fileDispute(req('wells'));
     expect(res.ok).toBe(false);
     expect(res.reason).toBe('declined');
+  });
+
+  it('mock port is idempotent per key: a replayed filing returns the same case and files only once', async () => {
+    const port = mockBankDisputePort();
+    const first = await port.fileDispute(req('citi', 'dispute-abc'));
+    const replay = await port.fileDispute(req('citi', 'dispute-abc'));
+    expect(first.bankCaseId).toBe(replay.bankCaseId);
+    // Only the first call opened a chargeback.
+    expect(port.requests.length).toBe(1);
+
+    // A different key opens a separate, genuinely-new filing.
+    await port.fileDispute(req('citi', 'dispute-xyz'));
+    expect(port.requests.length).toBe(2);
   });
 });

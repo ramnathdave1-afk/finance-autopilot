@@ -25,7 +25,8 @@ import {
   confirmCancellation,
   stepRecorder,
 } from '@fa/browserbase';
-import { lookupMerchant } from './registry';
+import type { Subscription } from '@fa/types';
+import { lookupMerchant, type MerchantCancelSpec } from './registry';
 import { computerUseFallback } from './computer-use-fallback';
 import { setRefundEligible } from './refund-eligible';
 import { getSubscription, markSubscriptionCancelled } from './subscription-lookup';
@@ -38,6 +39,57 @@ export interface SubKillerInput {
 }
 
 const SUCCESS_CONFIDENCE_THRESHOLD = 0.7;
+
+/** Annualized-month multiplier per billing frequency. */
+const FREQUENCY_TO_ANNUAL_MULTIPLIER: Record<Subscription['frequency'], number> = {
+  weekly: 52,
+  monthly: 12,
+  annual: 1,
+};
+
+/** Normalize a merchant string for identity comparison (case/punctuation/space insensitive). */
+function normalizeMerchant(s: string): string {
+  return s.toLowerCase().replace(/[^a-z0-9]+/g, '');
+}
+
+/**
+ * Guard: the subscription row we're about to flip must actually be the merchant
+ * we cancelled in the browser. Without this the agent can cancel merchant A in
+ * the remote browser while marking a DIFFERENT subscription row (merchant B)
+ * cancelled — silent data corruption + false ROI. Match the row's free-text
+ * merchant against the spec's key/displayName.
+ */
+function subscriptionMatchesSpec(sub: Subscription, spec: MerchantCancelSpec): boolean {
+  const rowMerchant = normalizeMerchant(sub.merchant);
+  if (!rowMerchant) return false;
+  const key = normalizeMerchant(spec.merchantKey);
+  const display = normalizeMerchant(spec.displayName);
+  // Accept exact match or containment either direction — transaction merchant
+  // strings are noisy ("NETFLIX.COM", "Netflix Premium") but must share the brand.
+  return (
+    rowMerchant === key ||
+    rowMerchant === display ||
+    rowMerchant.includes(key) ||
+    key.includes(rowMerchant) ||
+    rowMerchant.includes(display) ||
+    display.includes(rowMerchant)
+  );
+}
+
+/**
+ * Compute annual ROI from the actual subscription row (real amount + billing
+ * frequency), not a hardcoded registry estimate. Falls back to the registry
+ * estimate only when the row has no usable amount.
+ */
+function computeRoi(sub: Subscription, spec: MerchantCancelSpec): number | null {
+  if (typeof sub.amount === 'number' && sub.amount > 0) {
+    const multiplier = FREQUENCY_TO_ANNUAL_MULTIPLIER[sub.frequency] ?? 12;
+    return Number((sub.amount * multiplier).toFixed(2));
+  }
+  return spec.monthlyAmountEstimate
+    ? Number((spec.monthlyAmountEstimate * 12).toFixed(2))
+    : null;
+}
 
 /**
  * Inspect post-cancellation page with Claude and return a verdict.
@@ -78,7 +130,12 @@ async function runCancellation(
 
   // Idempotency on top of Inngest: if already cancelled, no-op.
   const sub = await getSubscription(input.subscriptionId);
-  if (sub?.status === 'cancelled') {
+  if (!sub) {
+    // No row → nothing legitimate to flip. Refuse rather than cancel a merchant
+    // in the browser with no subscription to bind the result to.
+    throw new Error(`subscription not found: ${input.subscriptionId}`);
+  }
+  if (sub.status === 'cancelled') {
     await recorder.logStep('already-cancelled', true, { subscriptionId: input.subscriptionId });
     return { roi: 0, data: { alreadyCancelled: true } };
   }
@@ -127,6 +184,20 @@ async function runCancellation(
   // Registry-driven web flow.
   if (!input.credentials) {
     throw new Error(`credentials required for ${spec.merchantKey} web cancel`);
+  }
+
+  // Bind the browser cancellation to THIS subscription row. If the row's
+  // merchant doesn't match the merchant we're about to cancel in the browser,
+  // refuse — otherwise we'd cancel one service and flip a different row's status.
+  if (!subscriptionMatchesSpec(sub, spec)) {
+    await recorder.logStep('merchant-mismatch', false, {
+      subscriptionId: input.subscriptionId,
+      rowMerchant: sub.merchant,
+      merchantKey: spec.merchantKey,
+    });
+    throw new Error(
+      `merchant mismatch: subscription "${sub.merchant}" does not match cancel target "${spec.merchantKey}"`,
+    );
   }
 
   const session = await createSession(ctx.userId);
@@ -185,9 +256,9 @@ async function runCancellation(
 
     await markSubscriptionCancelled(input.subscriptionId, 'web');
 
-    const roi = spec.monthlyAmountEstimate
-      ? Number((spec.monthlyAmountEstimate * 12).toFixed(2))
-      : null;
+    // ROI from the actual subscription row (real amount + billing frequency),
+    // not the hardcoded registry estimate.
+    const roi = computeRoi(sub, spec);
 
     return {
       roi,

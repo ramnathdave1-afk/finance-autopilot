@@ -45,18 +45,25 @@ function authHeader(env: TwilioEnv): string {
 
 /**
  * Build the TwiML webhook URL Twilio fetches when the call connects, carrying
- * the negotiation script + correlation id as query params so the app's
- * /api/voice/twiml route can voice the exact script for this call. Throws if no
- * base URL is configured — we never place a call that would <Say> nothing.
+ * ONLY the negotiation's correlation id as a query param. The app's
+ * /api/voice/twiml route uses the id to look the script up server-side (it was
+ * persisted on the bill_negotiations row before dialing) and voice it.
+ *
+ * We deliberately do NOT put the full script in the Url: Twilio logs request
+ * URLs, and a multi-paragraph script blows past practical URL length limits.
+ * Throws if no base URL or no negotiationId is configured — we never place a
+ * call whose TwiML route can't resolve a script (it would <Say> nothing).
  */
 function buildTwimlUrl(
   base: string | undefined,
-  q: { script: string; negotiationId?: string | undefined },
+  q: { negotiationId: string | undefined },
 ): string {
   if (!base) throw new Error('TWILIO_VOICE_TWIML_URL not set — cannot host the negotiation TwiML');
+  if (!q.negotiationId) {
+    throw new Error('negotiationId required to build the TwiML URL — the script is looked up by id');
+  }
   const url = new URL(base);
-  url.searchParams.set('script', q.script);
-  if (q.negotiationId) url.searchParams.set('negotiationId', q.negotiationId);
+  url.searchParams.set('negotiationId', q.negotiationId);
   return url.toString();
 }
 
@@ -84,18 +91,19 @@ export class RealTwilioAdapter implements TwilioPort {
 
     // The script is delivered to the call via TwiML built by the app's webhook
     // (apps/web /api/voice/twiml). Twilio fetches that Url when the call
-    // connects; we append the script + correlation metadata as query params so
-    // the route can voice the exact script for THIS call. The status-callback
+    // connects; we pass ONLY the negotiationId so the route can look the
+    // (already-persisted) script up server-side and voice the exact script for
+    // THIS call — the script is never placed in the URL. The status-callback
     // route (apps/web /api/voice/status) receives call lifecycle events and
     // updates the bill_negotiations row / agent_actions.
     const twimlUrl = buildTwimlUrl(process.env.TWILIO_VOICE_TWIML_URL, {
-      script: input.script,
       negotiationId: input.metadata?.negotiationId,
     });
     const body = new URLSearchParams({
       To: input.to,
       From: from,
-      // Url must point at the app's TwiML endpoint that voices `script`.
+      // Url points at the app's TwiML endpoint, which looks the script up by
+      // negotiationId and voices it.
       Url: twimlUrl,
       Record: 'true',
       RecordingChannels: 'dual',
@@ -111,13 +119,19 @@ export class RealTwilioAdapter implements TwilioPort {
       }
     }
 
+    // NOTE: there is NO provider-side idempotency for POST /Calls.json. The
+    // 'I-Twilio-Idempotency-Token' header is something Twilio SENDS to YOUR
+    // webhooks (so you can dedupe inbound deliveries) — it is NOT honored as an
+    // idempotency key by the Create Call REST endpoint. Sending it here does
+    // nothing. Double-dial prevention is therefore authoritative in OUR state
+    // (the bill_negotiations row + resume predicate in the agent), never in a
+    // non-existent provider feature. `input.idempotencyKey` is retained on the
+    // port for correlation/our own dedupe, not for Twilio.
     const res = await fetch(`${TWILIO_API_BASE}/Accounts/${env.accountSid}/Calls.json`, {
       method: 'POST',
       headers: {
         Authorization: authHeader(env),
         'Content-Type': 'application/x-www-form-urlencoded',
-        // Twilio dedupes on this header for POSTs that support it.
-        'I-Twilio-Idempotency-Token': input.idempotencyKey,
       },
       body,
     });

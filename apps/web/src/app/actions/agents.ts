@@ -196,6 +196,31 @@ export async function getTaxableAccountIds(): Promise<string[]> {
   }
 }
 
+/**
+ * Authoritative server-side approval gate. Some agent actions are IRREVERSIBLE
+ * real-world side effects (a filed bank chargeback can't be un-filed) and MUST
+ * NOT run without an explicit user approval. The UI passes `requiresApproval`,
+ * but a buggy/compromised client could pass `false` and the router would then
+ * run the agent immediately (a `pending` row is dispatched on creation; only an
+ * `awaiting_approval` row waits). So we enforce approval here regardless of the
+ * client flag, keyed by (agentType, actionType). This mirrors each agent's own
+ * `requiresApproval: true` declaration in @fa/inngest's registry, but enforced
+ * at the dispatch boundary so the gate cannot be bypassed from the client.
+ *
+ * Keep in sync with the agents that declare `requiresApproval: true`.
+ */
+const APPROVAL_REQUIRED_ACTIONS: ReadonlySet<string> = new Set<string>([
+  "charge_dispute:file_dispute",
+  "bill_negotiation:negotiate",
+  "credit_card_optimizer:apply_card",
+  "insurance_shopper:switch_carrier",
+  "refinance_watcher:request_offer",
+]);
+
+function isApprovalRequired(agentType: string, actionType: string): boolean {
+  return APPROVAL_REQUIRED_ACTIONS.has(`${agentType}:${actionType}`);
+}
+
 export interface DispatchInput {
   /**
    * Optional explicit agents.id (a UUID). When omitted, dispatchAction resolves
@@ -231,6 +256,12 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
   if (input.agentId !== undefined && !UUID_RE.test(input.agentId)) {
     return { ok: false, error: `invalid agentId (expected agents.id UUID): ${input.agentId}` };
   }
+  // Effective approval gate: honor the client flag, but force approval for any
+  // irreversible action regardless of what the client passed. A client can
+  // request MORE caution (true) but can never DOWNGRADE a mandatory gate.
+  const requiresApproval =
+    (input.requiresApproval ?? false) || isApprovalRequired(input.agentType, input.actionType);
+
   if (!hasSupabaseEnv()) return { ok: true, actionId: "demo" };
   try {
     const userId = await currentUserId();
@@ -244,7 +275,7 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
       agentType: input.agentType,
       actionType: input.actionType,
       target: input.target ?? null,
-      requiresApproval: input.requiresApproval ?? false
+      requiresApproval
     });
 
     // Seed richer input into audit_log so the router can hydrate it on the
@@ -261,7 +292,7 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
 
     // Only emit the router event when the row is ready to run.
     // Approval-gated rows wait for approveActionAction() before dispatch.
-    if (!input.requiresApproval) {
+    if (!requiresApproval) {
       try {
         await getInngest().send({ name: ROUTER_EVENT, data: { actionId: row.id } });
       } catch (e) {
@@ -277,7 +308,7 @@ export async function dispatchAction(input: DispatchInput): Promise<ActionResult
     void track(userId, "agent_action_proposed", {
       agent_type: input.agentType,
       action_type: input.actionType,
-      requires_approval: input.requiresApproval ?? false,
+      requires_approval: requiresApproval,
     });
 
     revalidatePath("/app");

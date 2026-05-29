@@ -6,6 +6,7 @@
         { "kind": "navigate", "match": "planetfitness.com/account/login", "response": {} },
         { "kind": "act", "match": "Enter username", "response": {} },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://test/pf-1.png", "pngBytes": 11000 } },
+        { "kind": "extract", "response": { "data": { "loggedIn": true } } },
         { "kind": "navigate", "match": "planetfitness.com/account", "response": {} },
         {
           "kind": "act",

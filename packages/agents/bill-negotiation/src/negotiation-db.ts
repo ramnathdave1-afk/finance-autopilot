@@ -49,26 +49,46 @@ export interface CreateNegotiationInput {
   agentActionId: string;
   targetAmount: number;
   status?: BillNegotiationStatus;
+  /** Negotiation script, persisted before dialing for the TwiML route. */
+  callScript?: string | null;
 }
 
-/** Insert a bill_negotiations row at the start of a call attempt. */
+/**
+ * Insert a bill_negotiations row at the start of a call attempt, idempotently.
+ *
+ * Uses upsert-on-conflict(agent_action_id)-do-nothing backed by the FULL unique
+ * index from phase3d_bill_negotiation_idempotency_and_script.sql, then selects
+ * the row. If a row for this agent_action_id already exists (a concurrent retry
+ * raced us), the insert is a no-op and we resolve to the EXISTING row rather
+ * than creating a duplicate or throwing — the database is the backstop for the
+ * application-level resume in agent.ts.
+ */
 export async function createNegotiation(
   input: CreateNegotiationInput,
 ): Promise<BillNegotiationRow> {
   const supabase = createServiceClient();
-  const { data, error } = await supabase
+  const row: Record<string, unknown> = {
+    user_id: input.userId,
+    bill_id: input.billId,
+    agent_action_id: input.agentActionId,
+    target_amount: input.targetAmount,
+    status: input.status ?? 'preparing_call',
+  };
+  if (input.callScript !== undefined) row.call_script = input.callScript;
+
+  // ignoreDuplicates → ON CONFLICT DO NOTHING. On conflict PostgREST returns no
+  // rows, so we always re-select by agent_action_id to land on the canonical
+  // row (whether we just inserted it or it already existed).
+  const { error } = await supabase
     .from('bill_negotiations')
-    .insert({
-      user_id: input.userId,
-      bill_id: input.billId,
-      agent_action_id: input.agentActionId,
-      target_amount: input.targetAmount,
-      status: input.status ?? 'preparing_call',
-    })
-    .select('*')
-    .single();
-  if (error || !data) throw new Error(`createNegotiation failed: ${error?.message}`);
-  return data as BillNegotiationRow;
+    .upsert(row, { onConflict: 'agent_action_id', ignoreDuplicates: true });
+  if (error) throw new Error(`createNegotiation failed: ${error.message}`);
+
+  const existing = await findNegotiationByActionId(input.agentActionId);
+  if (!existing) {
+    throw new Error('createNegotiation failed: row not found after upsert');
+  }
+  return existing;
 }
 
 export interface UpdateNegotiationPatch {
@@ -79,6 +99,7 @@ export interface UpdateNegotiationPatch {
   callEndedAt?: string | null;
   callDurationSeconds?: number | null;
   callSid?: string | null;
+  callScript?: string | null;
   voiceRecordingUrl?: string | null;
   transcriptUrl?: string | null;
   notes?: string | null;
@@ -100,6 +121,7 @@ export async function updateNegotiation(
   if (patch.callEndedAt !== undefined) row.call_ended_at = patch.callEndedAt;
   if (patch.callDurationSeconds !== undefined) row.call_duration_seconds = patch.callDurationSeconds;
   if (patch.callSid !== undefined) row.call_sid = patch.callSid;
+  if (patch.callScript !== undefined) row.call_script = patch.callScript;
   if (patch.voiceRecordingUrl !== undefined) row.voice_recording_url = patch.voiceRecordingUrl;
   if (patch.transcriptUrl !== undefined) row.transcript_url = patch.transcriptUrl;
   if (patch.notes !== undefined) row.notes = patch.notes;

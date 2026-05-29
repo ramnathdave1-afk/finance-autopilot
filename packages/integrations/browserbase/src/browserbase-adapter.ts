@@ -98,14 +98,18 @@ export class BrowserbaseAdapter implements BrowserAdapter {
     await this.stagehand.act(instruction);
   }
 
-  async extract<T>(schema: ZodSchema<T>): Promise<T> {
+  async extract<T>(schema: ZodSchema<T>, instruction?: string): Promise<T> {
     await this.ensureInit();
     // Stagehand v3 extract<T extends StagehandZodSchema>(instruction, schema)
     // returns the schema-inferred shape. ZodSchema<T> satisfies StagehandZodSchema
     // and infers back to T, but the two zod type families (the SDK's bundled zod
     // vs. our workspace zod) are nominally distinct, so we narrow the result.
+    // The caller-supplied `instruction` is what actually steers the extractor
+    // (e.g. "confirm the success selector <X> is present"); without it the
+    // extracted `found` boolean would be unanchored and meaningless.
     const result = await this.stagehand.extract(
-      'Extract the structured data described by the provided schema from the current page.',
+      instruction ??
+        'Extract the structured data described by the provided schema from the current page.',
       schema as never,
     );
     return result as T;

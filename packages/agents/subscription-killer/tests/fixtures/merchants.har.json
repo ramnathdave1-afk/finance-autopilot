@@ -7,6 +7,7 @@
         { "kind": "act", "match": "Enter username" },
         { "kind": "navigate" },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/login.png", "pngBytes": 11000 } },
+        { "kind": "extract", "response": { "data": { "loggedIn": true } } },
         { "kind": "act", "match": "Click the cancel-subscription" },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/cancel.png", "pngBytes": 12000 } },
         { "kind": "act", "match": "Confirm the cancellation" },
@@ -22,6 +23,7 @@
         { "kind": "act", "match": "Enter username" },
         { "kind": "navigate" },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://shots/login.png", "pngBytes": 11000 } },
+        { "kind": "extract", "response": { "data": { "loggedIn": true } } },
         {
           "kind": "act",
           "match": "Click the cancel-subscription",

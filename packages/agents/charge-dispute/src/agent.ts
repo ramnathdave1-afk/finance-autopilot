@@ -119,17 +119,50 @@ async function runDispute(
     reused: !!reentrant,
   });
 
+  // 1b. Already filed? If a prior attempt of THIS action got a successful bank
+  //     filing (bank_case_id persisted) but then threw before reaching a clean
+  //     terminal state, the retry must NOT re-file an irreversible chargeback.
+  //     Detect the durable filed marker and reconcile to 'filed' idempotently.
+  //     (The bank idempotencyKey below covers the narrower window where the
+  //     bank call succeeded but persisting bank_case_id failed — there we
+  //     re-call with the same key and the bank dedupes to the same case.)
+  if (reentrant && dispute.bank_case_id) {
+    if (dispute.status !== 'filed') {
+      await setDisputeStatus(dispute.id, 'filed', { bank_case_id: dispute.bank_case_id });
+    }
+    await ctx.log('dispute:already-filed', true, {
+      disputeId: dispute.id,
+      bankCaseId: dispute.bank_case_id,
+    });
+    return {
+      roi: Number(amount.toFixed(2)),
+      data: {
+        disputeId: dispute.id,
+        bank: input.bank,
+        bankCaseId: dispute.bank_case_id,
+        reason: input.reason,
+        amount,
+        alreadyFiled: true,
+      },
+    };
+  }
+
   // 2. Transition to 'filing' before any outbound bank contact.
   await setDisputeStatus(dispute.id, 'filing');
   await ctx.log('dispute:filing', true, { disputeId: dispute.id, bank: input.bank });
 
   // 3. File via the bank port. The agent NEVER fabricates a filing — this is
-  //    the only outbound seam, and on failure we throw to escalate.
+  //    the only outbound seam, and on failure we throw to escalate. We pass the
+  //    dispute id as the bank idempotency key: if a transient DB failure strikes
+  //    AFTER a successful bank call but BEFORE we persist bank_case_id, the
+  //    retry re-issues with the SAME key and the bank returns the original case
+  //    instead of opening a second chargeback (see BankDisputeRequest).
   const port = getBankDisputePort();
   let result: { ok: boolean; bankCaseId?: string; reason?: string };
   try {
     result = await port.fileDispute({
       bank: input.bank,
+      idempotencyKey: dispute.id,
       transactionId: input.transactionId,
       amount,
       reason: input.reason,

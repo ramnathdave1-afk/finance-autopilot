@@ -26,7 +26,13 @@ export interface Observation {
 export interface BrowserAdapter {
   navigate(url: string): Promise<void>;
   act(instruction: string): Promise<void>;
-  extract<T>(schema: ZodSchema<T>): Promise<T>;
+  /**
+   * Pull structured data off the current page. `instruction` steers what the
+   * extractor looks for (e.g. the merchant's success selector / banner text) so
+   * a generic `{found}` boolean is actually anchored to a real signal. Adapters
+   * that ignore the instruction (the HAR fake) still satisfy the contract.
+   */
+  extract<T>(schema: ZodSchema<T>, instruction?: string): Promise<T>;
   observe(): Promise<Observation>;
   screenshot(): Promise<Screenshot>;
   close(): Promise<void>;
@@ -44,7 +50,7 @@ class DefaultAdapter implements BrowserAdapter {
   async act(): Promise<void> {
     throw new Error('[browserbase] real adapter not wired — TODO(integrate-browserbase-sdk)');
   }
-  async extract<T>(): Promise<T> {
+  async extract<T>(_schema: ZodSchema<T>, _instruction?: string): Promise<T> {
     throw new Error('[browserbase] real adapter not wired — TODO(integrate-browserbase-sdk)');
   }
   async observe(): Promise<Observation> {
@@ -100,9 +106,9 @@ export class BrowserSession {
     return this.adapter.act(instruction);
   }
 
-  async extract<T>(schema: ZodSchema<T>): Promise<T> {
+  async extract<T>(schema: ZodSchema<T>, instruction?: string): Promise<T> {
     this.ensureOpen();
-    return this.adapter.extract(schema);
+    return this.adapter.extract(schema, instruction);
   }
 
   async observe(): Promise<Observation> {

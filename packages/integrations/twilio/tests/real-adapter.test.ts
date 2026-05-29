@@ -19,6 +19,69 @@ function jsonResponse(body: unknown): Response {
   });
 }
 
+describe('RealTwilioAdapter.placeCall', () => {
+  const CALL_ENV = { ...ENV, TWILIO_VOICE_TWIML_URL: 'https://app.example.com/api/voice/twiml' };
+  beforeEach(() => {
+    Object.assign(process.env, CALL_ENV);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+    for (const k of Object.keys(CALL_ENV)) delete process.env[k as keyof typeof CALL_ENV];
+  });
+
+  function capturePlaceCall() {
+    const seen: { url: string; init: RequestInit } = { url: '', init: {} };
+    const fetchMock = vi.fn(async (url: string | URL | Request, init?: RequestInit): Promise<Response> => {
+      seen.url = String(url);
+      seen.init = init ?? {};
+      return jsonResponse({ sid: 'CA_test', status: 'queued' });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    return seen;
+  }
+
+  it('does NOT send the non-existent I-Twilio-Idempotency-Token header (Twilio does not honor it on Create Call)', async () => {
+    const seen = capturePlaceCall();
+    await new RealTwilioAdapter().placeCall({
+      to: '+18005551212',
+      script: 'Hello, I would like to lower my bill.',
+      idempotencyKey: 'bill-neg:action-1:bill-1',
+      metadata: { negotiationId: 'neg-1' },
+    });
+    const headers = (seen.init.headers ?? {}) as Record<string, string>;
+    expect(Object.keys(headers)).not.toContain('I-Twilio-Idempotency-Token');
+  });
+
+  it('passes ONLY negotiationId in the TwiML Url — never the full script', async () => {
+    const seen = capturePlaceCall();
+    const script = 'A very long negotiation script that must never appear in the request URL.';
+    await new RealTwilioAdapter().placeCall({
+      to: '+18005551212',
+      script,
+      idempotencyKey: 'bill-neg:action-1:bill-1',
+      metadata: { negotiationId: 'neg-42' },
+    });
+    // The Url form field (sent to Twilio) carries the negotiationId, not the script.
+    const body = String((seen.init.body as URLSearchParams) ?? '');
+    const params = new URLSearchParams(body);
+    const twimlUrl = params.get('Url') ?? '';
+    expect(twimlUrl).toContain('negotiationId=neg-42');
+    expect(twimlUrl).not.toContain('script=');
+    expect(twimlUrl).not.toContain(encodeURIComponent('negotiation script'));
+  });
+
+  it('throws when no negotiationId is supplied (script is looked up by id)', async () => {
+    capturePlaceCall();
+    await expect(
+      new RealTwilioAdapter().placeCall({
+        to: '+18005551212',
+        script: 'whatever',
+        idempotencyKey: 'k',
+      }),
+    ).rejects.toThrow(/negotiationId required/);
+  });
+});
+
 describe('RealTwilioAdapter.getRecording', () => {
   beforeEach(() => {
     Object.assign(process.env, ENV);

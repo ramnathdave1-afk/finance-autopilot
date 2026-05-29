@@ -246,6 +246,11 @@ export interface BillNegotiationRow {
   call_duration_seconds: number | null;
   /** Twilio Call SID — set so a retried run resumes the same call. */
   call_sid: string | null;
+  /**
+   * The negotiation script, persisted before dialing so /api/voice/twiml can
+   * look it up by negotiationId (never passed in the TwiML Url).
+   */
+  call_script: string | null;
   voice_recording_url: string | null;
   transcript_url: string | null;
   notes: string | null;

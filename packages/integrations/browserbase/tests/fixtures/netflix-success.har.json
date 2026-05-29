@@ -6,6 +6,7 @@
         { "kind": "navigate", "match": "netflix.com/login", "response": {} },
         { "kind": "act", "match": "Enter username", "response": {} },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://test/netflix-1.png", "pngBytes": 12000 } },
+        { "kind": "extract", "response": { "data": { "loggedIn": true } } },
         { "kind": "navigate", "match": "netflix.com/cancelplan", "response": {} },
         { "kind": "act", "match": "Click the Finish Cancellation button", "response": {} },
         { "kind": "screenshot", "response": { "screenshotUrl": "https://test/netflix-2.png", "pngBytes": 14000 } },

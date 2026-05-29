@@ -44,6 +44,12 @@ const dbState = {
     { id: string; user_id: string; account_id: string; amount: number; merchant: string | null; date: string }
   >(),
   seq: 0,
+  /**
+   * When > 0, the next N `disputes.update` calls that would persist a 'filed'
+   * status throw a transient error WITHOUT applying the patch — simulating a DB
+   * blip AFTER the bank call succeeded but BEFORE bank_case_id is persisted.
+   */
+  failFiledUpdates: 0,
 };
 
 const startActionMock = vi.fn(async (input: {
@@ -152,6 +158,13 @@ function makeClient() {
           }),
           update: (patch: Partial<DisputeRecord>) => ({
             eq: async (_c: string, id: string) => {
+              // Simulate a transient DB failure on the 'filed' write: the patch
+              // is NOT applied and updateDispute() surfaces an error → throw,
+              // exactly like a real outage striking after the bank call.
+              if (patch.status === 'filed' && dbState.failFiledUpdates > 0) {
+                dbState.failFiledUpdates -= 1;
+                return { error: { message: 'transient: connection reset' } };
+              }
               const rec = dbState.disputesById.get(id);
               if (rec) Object.assign(rec, patch);
               return { error: null };
@@ -224,6 +237,7 @@ describe('chargeDisputeAgent', () => {
     dbState.disputesById.clear();
     dbState.transactions.clear();
     dbState.seq = 0;
+    dbState.failFiledUpdates = 0;
     startActionMock.mockClear();
     logStepMock.mockClear();
   });
@@ -351,6 +365,103 @@ describe('chargeDisputeAgent', () => {
     expect(secondFinal.result?.data?.alreadyOpen).toBe(true);
     // No second filing.
     expect(port.requests.length).toBe(1);
+  });
+
+  it('transient DB failure AFTER a successful bank filing does NOT double-file on retry', async () => {
+    const port = mockBankDisputePort();
+    setBankDisputePort(port);
+    seedTxn('txn-retry', 120.5);
+
+    // The bank call will succeed on the first attempt, but persisting the
+    // 'filed' status (with bank_case_id) throws once — a DB blip. runAgent
+    // retries; the agent re-issues fileDispute with the SAME idempotency key,
+    // and the bank dedupes to the original case rather than opening a second
+    // chargeback.
+    dbState.failFiledUpdates = 1;
+
+    const result = await runDispute({
+      transactionId: 'txn-retry',
+      reason: 'unauthorized',
+      bank: 'chase',
+      detectionScore: 0.91,
+    });
+
+    expect(result.status).toBe('succeeded');
+
+    // CRITICAL: exactly ONE chargeback was filed at the bank despite the retry.
+    expect(port.requests.length).toBe(1);
+
+    // The dispute ends in a clean 'filed' terminal state with the bank case id.
+    const dispute = [...dbState.disputesById.values()][0]!;
+    expect(dispute.status).toBe('filed');
+    expect(dispute.bank_case_id).toMatch(/^MOCK-chase-/);
+    expect(dispute.filed_at).not.toBeNull();
+
+    // Only one disputes row exists — the retry reused it, it did not create a
+    // second dangling dispute.
+    expect(dbState.disputesById.size).toBe(1);
+
+    // The bank port saw the same idempotency key (the dispute id) it would have
+    // re-sent on retry.
+    expect(port.requests[0]!.idempotencyKey).toBe(dispute.id);
+  });
+
+  it('reentrant retry with a persisted bank_case_id reconciles to filed WITHOUT re-calling the bank', async () => {
+    const port = mockBankDisputePort();
+    setBankDisputePort(port);
+    seedTxn('txn-stuck', 60);
+
+    // Simulate a prior attempt of THIS action that filed with the bank
+    // (bank_case_id persisted) but got stuck in 'filing' before reaching a
+    // clean terminal state.
+    const actionId = 'action-stuck';
+    dbState.actionsById.set(actionId, {
+      id: actionId,
+      user_id: 'user-1',
+      agent_id: 'agent-row-stuck',
+      agent_type: 'charge_dispute',
+      action_type: 'file_dispute',
+      target: null,
+      status: 'pending',
+      idempotency_key: 'dispute:txn-stuck',
+      audit_log: [],
+      roi_amount: null,
+      error_message: null,
+    });
+    dbState.disputesById.set('dispute-stuck', {
+      id: 'dispute-stuck',
+      user_id: 'user-1',
+      transaction_id: 'txn-stuck',
+      agent_action_id: actionId,
+      status: 'filing',
+      reason: 'duplicate',
+      detection_score: null,
+      amount: 60,
+      recovered_amount: null,
+      bank: 'amex',
+      bank_case_id: 'EXISTING-CASE-123',
+      filed_at: null,
+      resolved_at: null,
+      evidence: {},
+      created_at: new Date().toISOString(),
+    });
+
+    const result = await runAgent(
+      chargeDisputeAgent,
+      { userId: 'user-1', agentId: 'agent-row-stuck', input: { transactionId: 'txn-stuck', reason: 'duplicate', bank: 'amex' } },
+      { existingActionId: actionId, sleep: () => Promise.resolve() },
+    );
+
+    expect(result.status).toBe('succeeded');
+    expect(result.result?.data?.alreadyFiled).toBe(true);
+    expect(result.result?.data?.bankCaseId).toBe('EXISTING-CASE-123');
+
+    // No bank call was made — the durable bank_case_id short-circuited filing.
+    expect(port.requests.length).toBe(0);
+
+    const dispute = dbState.disputesById.get('dispute-stuck')!;
+    expect(dispute.status).toBe('filed');
+    expect(dispute.bank_case_id).toBe('EXISTING-CASE-123');
   });
 
   it('rejects an unsupported bank', async () => {

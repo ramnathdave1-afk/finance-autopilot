@@ -22,17 +22,30 @@ export interface MockBankDisputePort extends BankDisputePort {
 
 export function mockBankDisputePort(opts: MockBankDisputeOptions = {}): MockBankDisputePort {
   const requests: BankDisputeRequest[] = [];
+  // Models the bank's idempotency store: a successful filing is remembered by
+  // idempotencyKey, so a retried fileDispute with the same key returns the
+  // ORIGINAL case id and does NOT open a second chargeback. `requests` only
+  // records genuinely new filings, so tests can assert exactly one chargeback
+  // was filed even across agent retries.
+  const filedByKey = new Map<string, string>();
   return {
     requests,
     async fileDispute(req: BankDisputeRequest): Promise<BankDisputeResult> {
-      requests.push(req);
       if (opts.failAll) {
+        // Failures don't establish a case — record the attempt so escalation
+        // tests can still count retries.
+        requests.push(req);
         return { ok: false, reason: opts.reason ?? 'mock bank rejected dispute' };
       }
-      return {
-        ok: true,
-        bankCaseId: `${opts.caseIdPrefix ?? 'MOCK'}-${req.bank}-${req.transactionId.slice(0, 8)}`,
-      };
+      const existing = filedByKey.get(req.idempotencyKey);
+      if (existing) {
+        // Idempotent replay: same key → same case, no new chargeback.
+        return { ok: true, bankCaseId: existing };
+      }
+      requests.push(req);
+      const bankCaseId = `${opts.caseIdPrefix ?? 'MOCK'}-${req.bank}-${req.transactionId.slice(0, 8)}`;
+      filedByKey.set(req.idempotencyKey, bankCaseId);
+      return { ok: true, bankCaseId };
     },
   };
 }

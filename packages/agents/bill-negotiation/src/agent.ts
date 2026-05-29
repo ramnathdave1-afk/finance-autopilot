@@ -3,8 +3,11 @@
 // Flow (per PRD §8.3 + §10 orchestration + §16 trust):
 //   1. Load the bill (provider, current $) and the user's target $.
 //   2. Create a bill_negotiations row (status preparing_call).
-//   3. Generate a negotiation call script via @fa/claude.
-//   4. Place the outbound call via @fa/twilio (status calling).
+//   3. Generate a negotiation call script via @fa/claude, persist it on the row
+//      (call_script) and advance to status 'calling' — the dial-attempt marker.
+//   4. Place the outbound call via @fa/twilio, then persist the call_sid. The
+//      'calling' marker is written BEFORE the dial so a retry whose call_sid
+//      write failed never re-dials (no provider-side idempotency exists).
 //   5. Poll call status until terminal.
 //   6. If the call did not connect+complete → throw → defineAgent retries 3x
 //      then escalates (status failed). We NEVER fake a completed call.
@@ -92,16 +95,30 @@ async function runNegotiation(
   }
 
   // 2. RESUME or CREATE. defineAgent retries runNegotiation from the top, and
-  // the production Inngest function adds its own outer retries. To avoid
-  // double-dialing the provider's support line on a transient error AFTER a
-  // call was already placed, we look up an in-flight negotiation row for THIS
-  // agent_action_id. If one exists with a callSid, we resume polling that same
-  // call rather than inserting a new row and dialing again.
+  // the production Inngest function adds its own outer retries. There is NO
+  // provider-side idempotency on the Twilio Create Call endpoint, so
+  // double-dial prevention is authoritative in OUR state.
+  //
+  // The authoritative signal is "a call was ATTEMPTED for this action" — which
+  // we record by advancing the row to the 'calling' marker BEFORE we dial. The
+  // call_sid is written AFTER the dial returns, in a separate write that can
+  // fail. So we must NOT key resume on call_sid alone: if that second write
+  // failed, the row still carries the 'calling' marker and a naive retry would
+  // re-dial. callAttempted() captures both cases.
   let neg: BillNegotiationRow;
   let callSid: string;
   const existing = await findNegotiationByActionId(ctx.actionId);
+  // "A call was attempted for this action" = the row has advanced past the
+  // pre-dial states. We persist the 'calling' marker BEFORE dialing, and any
+  // later status (negotiating/succeeded/failed/no_savings) likewise means a
+  // dial already happened. Only 'pending'/'preparing_call' are pre-dial. We do
+  // NOT key off call_sid alone — it is written AFTER the dial in a separate
+  // write that can fail, leaving an attempted call with a null SID.
+  const callAttempted = (row: BillNegotiationRow): boolean =>
+    row.status !== 'pending' && row.status !== 'preparing_call';
 
-  if (existing && existing.call_sid) {
+  if (existing && callAttempted(existing) && existing.call_sid) {
+    // A call was placed AND we have its SID — resume polling that same call.
     neg = existing;
     callSid = existing.call_sid;
     await ctx.log('negotiation:resumed', true, {
@@ -109,7 +126,24 @@ async function runNegotiation(
       callSid,
       status: existing.status,
     });
+  } else if (existing && callAttempted(existing)) {
+    // We marked 'calling' (so the dial MAY have gone out) but never persisted a
+    // call_sid. We cannot safely re-dial — that risks a double-dial to the
+    // provider's support line — and we have no SID to resume polling. Route to
+    // human review and escalate rather than re-dialing. (PRD §16 trust.)
+    neg = existing;
+    await updateNegotiation(neg.id, {
+      status: 'negotiating',
+      notes: 'call was attempted but no call SID was recorded — routed to human review',
+    });
+    await ctx.log('negotiation:attempted-no-sid', false, {
+      negotiationId: neg.id,
+      status: existing.status,
+    });
+    throw new Error('bill negotiation call was attempted but no call SID recorded — needs human review');
   } else {
+    // No prior attempt for this action (no row, or row still in a pre-dial
+    // state). Safe to (re)generate the script and dial.
     neg = existing ?? (await createNegotiation({
       userId: ctx.userId,
       billId: bill.id,
@@ -131,9 +165,20 @@ async function runNegotiation(
     });
     await ctx.log('script:generated', true, { chars: script.length });
 
+    // Persist the 'calling' marker AND the script BEFORE dialing. The marker is
+    // what makes a re-dial impossible on a subsequent retry (callAttempted),
+    // and the script is looked up by negotiationId by /api/voice/twiml — it is
+    // never passed in the TwiML Url.
+    const callStartedAt = new Date().toISOString();
+    await updateNegotiation(neg.id, {
+      status: 'calling',
+      callStartedAt,
+      callScript: script,
+    });
+
     // 4. Place the call. The idempotency key is derived from STABLE inputs
-    // (actionId + billId) — never neg.id — so every retry presents Twilio the
-    // SAME I-Twilio-Idempotency-Token and the provider dedupes a redial.
+    // (actionId + billId) and carried for OUR correlation/dedupe — Twilio does
+    // not honor it (no provider-side idempotency on Create Call).
     const placed = await placeCall({
       to: input.providerPhone,
       script,
@@ -142,10 +187,10 @@ async function runNegotiation(
       metadata: { negotiationId: neg.id, billId: bill.id },
     });
     callSid = placed.callSid;
-    const callStartedAt = new Date().toISOString();
-    // Persist the callSid immediately so a retry after this point resumes
-    // rather than re-dials.
-    await updateNegotiation(neg.id, { status: 'calling', callStartedAt, callSid });
+    // Persist the callSid so a retry after this point resumes polling rather
+    // than dialing. If THIS write fails, the 'calling' marker above still
+    // prevents a re-dial (callAttempted → escalate, never re-dial).
+    await updateNegotiation(neg.id, { callSid });
     await ctx.log('call:placed', true, { callSid, status: placed.status });
   }
 

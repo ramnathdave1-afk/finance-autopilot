@@ -42,4 +42,19 @@ describe("server actions (no env -> graceful no-op)", () => {
     const r = await setPauseAllAction(true);
     expect(r.ok).toBe(true);
   });
+
+  it("dispatch returns ok for an irreversible action even when client passes requiresApproval:false (gate enforced server-side)", async () => {
+    // A buggy/compromised client could try to downgrade the approval gate for an
+    // irreversible chargeback. Without Supabase env this is a no-op, but the call
+    // must still succeed — the server-side enforcement lives in dispatchAction and
+    // is exercised end-to-end by the integration suite. Here we just assert the
+    // call shape is accepted.
+    const r = await dispatchAction({
+      agentType: "charge_dispute",
+      actionType: "file_dispute",
+      target: "ACME",
+      requiresApproval: false
+    });
+    expect(r.ok).toBe(true);
+  });
 });

@@ -113,9 +113,15 @@ d('live plaid-sandbox harness', () => {
       throw e;
     }
 
-    // 3. sync transactions + categorize via Claude
+    // 3. sync transactions + categorize via Claude.
+    // Plaid sandbox populates transactions ASYNCHRONOUSLY, so retry the sync a
+    // few times until they land (real apps do this via the SYNC_UPDATES_AVAILABLE webhook).
     try {
-      const res = await syncUser(userId);
+      let res = await syncUser(userId);
+      for (let i = 0; i < 6 && res.added === 0; i++) {
+        await new Promise((r) => setTimeout(r, 3000));
+        res = await syncUser(userId);
+      }
       record('syncUser (transactions/sync + Claude categorize)', true, JSON.stringify(res));
     } catch (e: any) {
       record('syncUser', false, e?.message ?? String(e));

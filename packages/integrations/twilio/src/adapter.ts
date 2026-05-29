@@ -34,9 +34,10 @@ export interface PlaceCallInput {
   /** Caller id in E.164. Defaults to TWILIO_PHONE_NUMBER in the real adapter. */
   from?: string | undefined;
   /**
-   * The negotiation script the AI voice reads / works from. The real adapter
-   * passes this to the call's media/agent layer (TwiML + TTS or a Media
-   * Streams bridge). The mock records it.
+   * The negotiation script the AI voice reads / works from. The caller persists
+   * this server-side (keyed by negotiationId) BEFORE placing the call; the real
+   * adapter does NOT put it in the TwiML Url — the /api/voice/twiml route looks
+   * it up by negotiationId. The mock records it.
    */
   script: string;
   /** Optional voice persona id for TTS (ElevenLabs voice id). */
