@@ -1,4 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
-  "include": ["src", "."]
+  "include": ["src", "."],
+  "comment": "sandbox-live.test.ts is a gated LIVE harness (RUN_SANDBOX=1). It imports cross-package src directly and is excluded from the standard typecheck; it still runs under vitest when the flag is set.",
+  "exclude": ["sandbox-live.test.ts"]
 }
