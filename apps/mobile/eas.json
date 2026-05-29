@@ -1,0 +1,50 @@
+{
+  "cli": {
+    "version": ">= 12.0.0",
+    "appVersionSource": "remote"
+  },
+  "_comment_env": "Required env vars per profile (set with `eas secret:create` or in eas.json `env` blocks below). Names mirror root .env.example. The mobile bundle only ever ships PUBLIC values — EXPO_PUBLIC_SUPABASE_URL, EXPO_PUBLIC_SUPABASE_ANON_KEY (anon key only, NEVER the service-role key), and EXPO_PUBLIC_API_BASE_URL (the @fa/web origin for Plaid exchange / Stripe checkout). EXPO_ACCESS_TOKEN is used by EAS infra for push, not bundled. projectId comes from app.config.ts -> extra.eas.projectId (run `eas init` to fill in the current TODO placeholder).",
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "channel": "development",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "http://localhost:3000"
+      },
+      "ios": { "simulator": true },
+      "android": { "buildType": "apk" }
+    },
+    "preview": {
+      "distribution": "internal",
+      "channel": "preview",
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://staging.web.example.com"
+      },
+      "ios": { "simulator": false },
+      "android": { "buildType": "apk" }
+    },
+    "production": {
+      "distribution": "store",
+      "channel": "production",
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_API_BASE_URL": "https://web.example.com"
+      },
+      "android": { "buildType": "app-bundle" }
+    }
+  },
+  "submit": {
+    "production": {
+      "ios": {
+        "appleId": "APPLE_ID_EMAIL_HERE",
+        "ascAppId": "APP_STORE_CONNECT_APP_ID_HERE",
+        "appleTeamId": "APPLE_TEAM_ID_HERE"
+      },
+      "android": {
+        "serviceAccountKeyPath": "./google-play-service-account.json",
+        "track": "internal"
+      }
+    }
+  }
+}

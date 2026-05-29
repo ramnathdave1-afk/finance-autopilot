@@ -43,6 +43,23 @@ function authHeader(env: TwilioEnv): string {
   return `Basic ${Buffer.from(`${env.accountSid}:${env.authToken}`).toString('base64')}`;
 }
 
+/**
+ * Build the TwiML webhook URL Twilio fetches when the call connects, carrying
+ * the negotiation script + correlation id as query params so the app's
+ * /api/voice/twiml route can voice the exact script for this call. Throws if no
+ * base URL is configured — we never place a call that would <Say> nothing.
+ */
+function buildTwimlUrl(
+  base: string | undefined,
+  q: { script: string; negotiationId?: string | undefined },
+): string {
+  if (!base) throw new Error('TWILIO_VOICE_TWIML_URL not set — cannot host the negotiation TwiML');
+  const url = new URL(base);
+  url.searchParams.set('script', q.script);
+  if (q.negotiationId) url.searchParams.set('negotiationId', q.negotiationId);
+  return url.toString();
+}
+
 function mapStatus(raw: string): CallStatusValue {
   // Twilio call statuses map 1:1 onto our union; default to 'failed' if the
   // provider returns something unrecognized so we never claim success.
@@ -65,18 +82,34 @@ export class RealTwilioAdapter implements TwilioPort {
     const env = readEnv();
     const from = input.from ?? env.phoneNumber;
 
-    // The script is delivered to the call via TwiML <Say>/<Connect> built by
-    // the app's webhook (TODO(integrate-twilio-sdk): host the TwiML/Media
-    // Streams endpoint and pass its URL here). We pass it as a status-callback
-    // correlation param; the live media layer reads the script for this SID.
+    // The script is delivered to the call via TwiML built by the app's webhook
+    // (apps/web /api/voice/twiml). Twilio fetches that Url when the call
+    // connects; we append the script + correlation metadata as query params so
+    // the route can voice the exact script for THIS call. The status-callback
+    // route (apps/web /api/voice/status) receives call lifecycle events and
+    // updates the bill_negotiations row / agent_actions.
+    const twimlUrl = buildTwimlUrl(process.env.TWILIO_VOICE_TWIML_URL, {
+      script: input.script,
+      negotiationId: input.metadata?.negotiationId,
+    });
     const body = new URLSearchParams({
       To: input.to,
       From: from,
       // Url must point at the app's TwiML endpoint that voices `script`.
-      Url: process.env.TWILIO_VOICE_TWIML_URL ?? 'about:blank',
+      Url: twimlUrl,
       Record: 'true',
       RecordingChannels: 'dual',
     });
+    // Status callbacks → the app's status route, which closes out the row.
+    const statusCallback = process.env.TWILIO_VOICE_STATUS_CALLBACK_URL;
+    if (statusCallback) {
+      body.set('StatusCallback', statusCallback);
+      body.set('StatusCallbackMethod', 'POST');
+      // Twilio repeats the param key per value for arrays.
+      for (const ev of ['initiated', 'ringing', 'answered', 'completed']) {
+        body.append('StatusCallbackEvent', ev);
+      }
+    }
 
     const res = await fetch(`${TWILIO_API_BASE}/Accounts/${env.accountSid}/Calls.json`, {
       method: 'POST',

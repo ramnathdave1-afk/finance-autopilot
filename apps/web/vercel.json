@@ -1,0 +1,30 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "framework": "nextjs",
+
+  "//": "Deploy @fa/web (Next.js 16) from a pnpm monorepo. Set the Vercel project's Root Directory to apps/web; commands below cd back to the repo root so the whole workspace installs and only @fa/web (plus its workspace deps) is built. Deploy with: `vercel --prod` from apps/web, or `pnpm deploy:web` from the repo root (see root package.json).",
+
+  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "buildCommand": "cd ../.. && pnpm --filter @fa/web... build",
+  "outputDirectory": ".next",
+
+  "//functions": "All API routes export `runtime = \"nodejs\"` and `dynamic = \"force-dynamic\"` (Inngest, Plaid, Stripe webhooks need a real Node runtime + raw request body). Bump maxDuration for the webhook/agent-dispatch routes that fan out work; the Inngest endpoint can be long-lived while serving steps.",
+  "functions": {
+    "src/app/api/inngest/route.ts": { "maxDuration": 300 },
+    "src/app/api/stripe/webhook/route.ts": { "maxDuration": 60 },
+    "src/app/api/plaid/webhook/route.ts": { "maxDuration": 60 },
+    "src/app/api/plaid/exchange/route.ts": { "maxDuration": 30 },
+    "src/app/api/agent-actions/[id]/approve/route.ts": { "maxDuration": 60 },
+    "src/app/api/agent-actions/[id]/reject/route.ts": { "maxDuration": 30 }
+  },
+
+  "//env": "Set these in the Vercel project (Production + Preview). Names mirror the root .env.example — NEVER paste values here; configure them as Vercel Environment Variables / Secrets. Build/runtime split noted per var.",
+  "//env.supabase": "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY (public, build+runtime); SUPABASE_SERVICE_ROLE_KEY (server-only runtime, used by @fa/db).",
+  "//env.plaid": "PLAID_CLIENT_ID, PLAID_SECRET, PLAID_ENV, PLAID_WEBHOOK_URL (server-only runtime).",
+  "//env.stripe": "STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY (last is public), plus the STRIPE_PRICE_* / STRIPE_COUPON_* ids.",
+  "//env.inngest": "INNGEST_EVENT_KEY, INNGEST_SIGNING_KEY (server-only; required for the /api/inngest serve handler in production).",
+  "//env.anthropic": "ANTHROPIC_API_KEY (server-only, agent reasoning + categorization).",
+  "//env.agents": "BROWSERBASE_API_KEY, BROWSERBASE_PROJECT_ID (subscription-killer); TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER (bill-negotiation).",
+  "//env.notify": "EXPO_ACCESS_TOKEN, ONESIGNAL_APP_ID, ONESIGNAL_REST_API_KEY (push); ELEVENLABS_API_KEY, ELEVENLABS_VOICE_ID, OPENAI_API_KEY, OPENAI_TTS_VOICE (voice briefing TTS).",
+  "//env.observability": "NEXT_PUBLIC_POSTHOG_KEY, NEXT_PUBLIC_POSTHOG_HOST (public); SENTRY_DSN, SENTRY_AUTH_TOKEN (build-time source-map upload + runtime)."
+}

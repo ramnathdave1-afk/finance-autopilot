@@ -31,6 +31,12 @@ jobs:
       - name: Test
         run: pnpm -r --filter='./packages/**' --filter='@fa/mobile' test
 
+      # scripts/ is not a workspace package, so the recursive test run above
+      # skips it. Run the catalog-builder tests explicitly so the Stripe price
+      # catalog can't drift from products.ts / .env.example unnoticed.
+      - name: Test scripts
+        run: pnpm test:scripts
+
       # apps/web is a Next.js project — build verifies route + page integrity.
       - name: Build web
         run: pnpm --filter @fa/web build

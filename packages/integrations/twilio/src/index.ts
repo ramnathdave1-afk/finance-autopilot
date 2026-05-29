@@ -25,3 +25,10 @@ export {
   isTerminalStatus,
   isConnectedCompletion,
 } from './voice';
+
+export {
+  buildNegotiationTwiml,
+  validateTwilioSignature,
+  escapeXml,
+  type TwimlSayOptions,
+} from './twiml';

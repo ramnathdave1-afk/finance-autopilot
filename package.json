@@ -2,13 +2,25 @@
   "name": "finance-autopilot",
   "private": true,
   "version": "0.0.0",
-  "workspaces": ["apps/*", "packages/*"],
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
     "dev": "pnpm --filter @fa/web dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test"
+    "test": "pnpm -r test",
+    "check:env": "node scripts/check-env.mjs",
+    "setup": "node scripts/setup.mjs",
+    "stripe:prices": "node scripts/create-stripe-prices.mjs",
+    "test:scripts": "node --test \"scripts/*.test.mjs\"",
+    "deploy:web": "pnpm --filter @fa/web exec vercel --prod",
+    "deploy:web:preview": "pnpm --filter @fa/web exec vercel",
+    "deploy:mobile:preview": "pnpm --filter @fa/mobile exec eas build --profile preview --platform all",
+    "deploy:mobile": "pnpm --filter @fa/mobile exec eas build --profile production --platform all",
+    "submit:mobile": "pnpm --filter @fa/mobile exec eas submit --profile production --platform all"
   },
   "packageManager": "pnpm@9.0.0",
   "pnpm": {
@@ -16,5 +28,8 @@
       "@types/react": "19.0.0",
       "@types/react-dom": "19.0.0"
     }
+  },
+  "devDependencies": {
+    "stripe": "^17.0.0"
   }
 }

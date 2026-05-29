@@ -10,7 +10,11 @@ overrides:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      stripe:
+        specifier: ^17.0.0
+        version: 17.7.0
 
   apps/mobile:
     dependencies:

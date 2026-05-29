@@ -6,7 +6,7 @@ const MIG = (n: string) => readFileSync(join(__dirname, '..', 'migrations', n), 
 
 describe('phase 2 tier-2 schema', () => {
   it('declares all tier-2 tables', () => {
-    const sql = MIG('phase2_T2_tier2_tables.sql');
+    const sql = MIG('phase2a_T2_tier2_tables.sql');
     for (const t of [
       'public.bills',
       'public.bill_negotiations',
@@ -25,14 +25,14 @@ describe('phase 2 tier-2 schema', () => {
   });
 
   it('declares tier-2 enums', () => {
-    const sql = MIG('phase2_T2_tier2_tables.sql');
+    const sql = MIG('phase2a_T2_tier2_tables.sql');
     for (const e of ['dispute_status', 'bill_negotiation_status', 'loan_type', 'insurance_kind']) {
       expect(sql).toContain(`create type ${e}`);
     }
   });
 
   it('rls policies cover user-scoped tier-2 tables', () => {
-    const sql = MIG('phase2_T2_tier2_rls.sql');
+    const sql = MIG('phase2b_T2_tier2_rls.sql');
     for (const t of [
       'bills',
       'bill_negotiations',
@@ -49,7 +49,7 @@ describe('phase 2 tier-2 schema', () => {
   });
 
   it('cards + rate_snapshots are read-only catalog tables for authenticated', () => {
-    const sql = MIG('phase2_T2_tier2_rls.sql');
+    const sql = MIG('phase2b_T2_tier2_rls.sql');
     expect(sql).toContain('cards_read');
     expect(sql).toContain('rate_snapshots_read');
     expect(sql).toContain("auth.role() = 'authenticated'");
