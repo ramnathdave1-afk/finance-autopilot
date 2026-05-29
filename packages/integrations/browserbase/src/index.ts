@@ -15,6 +15,11 @@ export {
   type StagehandStep,
   type StagehandResult,
 } from './stagehand';
+export {
+  BrowserbaseAdapter,
+  browserbaseAdapterFactory,
+  useRealBrowserbase,
+} from './browserbase-adapter';
 export { stepRecorder, type StepRecorder } from './recorder';
 export {
   replayFromHar,
